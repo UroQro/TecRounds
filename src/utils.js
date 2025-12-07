@@ -10,11 +10,12 @@ export const calculateLOS = (admissionDate) => {
   const oneDay = 24 * 60 * 60 * 1000;
   const firstDate = new Date(admissionDate);
   const secondDate = new Date();
-  return Math.round(Math.abs((firstDate - secondDate) / oneDay));
+  return Math.round(Math.abs((secondDate - firstDate) / oneDay));
 };
 
-export const downloadCSV = (data, filename) => {
-  const csvContent = "data:text/csv;charset=utf-8," + data.map(e => e.join(",")).join("\n");
+export const downloadCSV = (data, headers, filename) => {
+  const csvContent = "data:text/csv;charset=utf-8," 
+    + [headers.join(","), ...data.map(e => e.join(","))].join("\n");
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
