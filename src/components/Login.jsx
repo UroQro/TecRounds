@@ -38,11 +38,25 @@ export default function Login() {
                            className="w-full p-2 border border-red-200 rounded text-sm bg-white" placeholder="********" required />
                 </div>
             )}
-            <div><label className="text-sm font-bold text-gray-600 block mb-1">Usuario</label><input type="text" value={username} onChange={e=>setUsername(e.target.value)} className="w-full p-3 border rounded bg-slate-50 outline-none uppercase" placeholder="EJ. ANDRES" required /></div>
-            <div><label className="text-sm font-bold text-gray-600 block mb-1">Contraseña</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full p-3 border rounded bg-slate-50 outline-none" required /></div>
-            <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg">{isRegistering ? 'Crear Usuario' : 'Entrar'}</button>
+            <div>
+                <label className="text-sm font-bold text-gray-600 block mb-1">Usuario</label>
+                <input type="text" value={username} onChange={e=>setUsername(e.target.value)} 
+                       className="w-full p-3 border rounded bg-slate-50 outline-none uppercase" placeholder="EJ. ANDRES" required />
+            </div>
+            <div>
+                <label className="text-sm font-bold text-gray-600 block mb-1">Contraseña</label>
+                <input type="password" value={password} onChange={e=>setPassword(e.target.value)} 
+                       className="w-full p-3 border rounded bg-slate-50 outline-none" required />
+            </div>
+            <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg">
+                {isRegistering ? 'Crear Usuario' : 'Entrar'}
+            </button>
         </form>
-        <div className="mt-6 text-center pt-4 border-t"><button onClick={() => {setIsRegistering(!isRegistering); setError('')}} className="text-sm text-blue-500 font-semibold hover:underline">{isRegistering ? '← Regresar al Login' : 'Crear usuario nuevo'}</button></div>
+        <div className="mt-6 text-center pt-4 border-t">
+            <button onClick={() => {setIsRegistering(!isRegistering); setError('')}} className="text-sm text-blue-500 font-semibold hover:underline">
+                {isRegistering ? '← Regresar al Login' : 'Crear usuario nuevo'}
+            </button>
+        </div>
       </div>
     </div>
   );
