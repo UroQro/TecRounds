@@ -36,7 +36,19 @@ export default function Census({ user }) {
   };
 
   const getCardColor = (p) => {
+    // 1. NOVER: Siempre blanco (Prioridad máxima visual)
+    if (p.type === 'NOVER') return "bg-white border-gray-200";
+
+    // 2. Pendientes: Amarillo (Prioridad sobre visitado/no visitado)
     if (p.hasPending) return "bg-yellow-50 border-yellow-500";
+
+    // 3. SND: Lógica Naranja/Verde
+    if (p.type === 'SND') {
+        if (p.status === 'done') return "bg-green-50 border-green-500";
+        return "bg-orange-50 border-orange-500";
+    }
+
+    // 4. HO / IC: Lógica Rojo/Azul
     if (p.status === 'done') return "bg-blue-50 border-blue-500";
     return "bg-red-50 border-red-500";
   };
@@ -83,7 +95,7 @@ export default function Census({ user }) {
                   <div className="flex-1 pr-2">
                      <div className="flex items-center gap-2 mb-1">
                         <span className="text-xl font-black text-slate-800">{p.bed}</span>
-                        <span className="text-[10px] font-bold bg-white px-2 py-0.5 rounded border shadow-sm uppercase tracking-wider">{p.type}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border shadow-sm uppercase tracking-wider ${p.type==='NOVER'?'bg-gray-100 text-gray-500':'bg-white'}`}>{p.type}</span>
                      </div>
                      <h3 className="font-bold text-lg text-blue-900 leading-tight mb-1">{p.name}</h3>
                      <div className="text-xs text-slate-600 flex justify-between bg-white/50 p-1 rounded">
@@ -93,7 +105,7 @@ export default function Census({ user }) {
                   </div>
                   <div className="flex flex-col items-end justify-between h-full gap-2">
                       <button onClick={(e) => toggleStatus(e, p)} className="">
-                          {p.status === 'done' ? <CheckSquare size={30} className="text-blue-600"/> : <Square size={30} className="text-red-400"/>}
+                          {p.status === 'done' ? <CheckSquare size={30} className={p.type === 'SND' ? "text-green-600" : "text-blue-600"}/> : <Square size={30} className={p.type === 'SND' ? "text-orange-400" : "text-red-400"}/>}
                       </button>
                       <div className="flex items-center gap-2 mt-2">
                          <span className="text-[10px] font-bold text-slate-400">{calculateLOS(p.admissionDate)}d</span>
@@ -144,7 +156,12 @@ export function PatientFormModal({ onClose, mode, initialData }) {
               <form onSubmit={handleSubmit} className="space-y-3">
                   <div className="flex gap-2">
                       <input required placeholder="Cama" className="w-1/3 p-2 border rounded" value={form.bed} onChange={e=>setForm({...form, bed:e.target.value})} />
-                      <select className="w-1/3 p-2 border rounded" value={form.type} onChange={e=>setForm({...form, type:e.target.value})}><option>HO</option><option>IC</option></select>
+                      <select className="w-1/3 p-2 border rounded" value={form.type} onChange={e=>setForm({...form, type:e.target.value})}>
+                          <option>HO</option>
+                          <option>IC</option>
+                          <option>SND</option>
+                          <option>NOVER</option>
+                      </select>
                   </div>
                   <input required placeholder="Nombre Completo" className="w-full p-2 border rounded" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
                   

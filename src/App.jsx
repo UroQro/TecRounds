@@ -5,8 +5,7 @@ import Login from './components/Login';
 import Census from './components/Census';
 import Surgery from './components/Surgery';
 import Discharges from './components/Discharges';
-import UserManagement from './components/UserManagement';
-import { LogOut, ClipboardList, Archive, Scissors, Users } from 'lucide-react';
+import { LogOut, ClipboardList, Archive, Scissors } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -52,15 +51,10 @@ export default function App() {
         {view === 'census' && <Census user={user} />}
         {view === 'or' && <Surgery user={user} />}
         {view === 'discharges' && <Discharges />}
-        {view === 'users' && <UserManagement />}
       </main>
 
-      {/* FOOTER ADMIN */}
-      <footer className="bg-slate-200 p-2 text-center text-xs text-slate-500 border-t flex justify-center gap-4">
-          <button onClick={()=>setView('users')} className="flex items-center gap-1 hover:text-blue-600 font-bold">
-              <Users size={12}/> Gestionar Usuarios
-          </button>
-          <span>v10.0</span>
+      <footer className="bg-slate-100 p-3 text-center text-[10px] text-slate-400 border-t">
+          © 2026 Rosenzweig/Gemini
       </footer>
     </div>
   );

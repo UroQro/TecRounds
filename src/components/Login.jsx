@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { auth } from '../firebase';
 
 export default function Login() {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -22,17 +21,7 @@ export default function Login() {
     e.preventDefault(); setError('');
     if (masterPass !== 'urotec123') return setError("Contraseña maestra incorrecta.");
     const email = username.trim() + FAKE_DOMAIN;
-    
-    try { 
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password); 
-        // Crear registro en colección 'users' para poder listarlos en el admin panel
-        await setDoc(doc(db, "users", userCredential.user.uid), {
-            name: username.toUpperCase(),
-            email: email,
-            role: 'resident',
-            createdAt: new Date().toISOString()
-        });
-    } 
+    try { await createUserWithEmailAndPassword(auth, email, password); } 
     catch (err) { setError(err.message); }
   };
 
