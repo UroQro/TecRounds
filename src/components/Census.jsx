@@ -4,7 +4,7 @@ import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy } from '
 import { DOCTORS, RESIDENTS } from '../constants';
 import { calculateLOS, downloadCSV, calculateAge } from '../utils';
 import PatientDetail from './PatientDetail';
-import { Plus, CheckSquare, Square, Search, LogOut } from 'lucide-react';
+import { Plus, CheckSquare, Square, LogOut } from 'lucide-react';
 
 export default function Census({ user }) {
   const [patients, setPatients] = useState([]);
@@ -30,11 +30,8 @@ export default function Census({ user }) {
 
   const dischargePatient = async (e, p) => {
       e.stopPropagation();
-      if(confirm(`¿Egresar (Dar de Alta) a ${p.name}?`)) {
-          await updateDoc(doc(db, "patients", p.id), { 
-              discharged: true, 
-              dischargeDate: new Date().toISOString() 
-          });
+      if(confirm(`¿Egresar a ${p.name}?`)) {
+          await updateDoc(doc(db, "patients", p.id), { discharged: true, dischargeDate: new Date().toISOString() });
       }
   };
 
@@ -50,10 +47,7 @@ export default function Census({ user }) {
   };
 
   const exportGeneral = () => {
-    const data = patients.map(p => [
-       p.bed, p.type, p.name, p.admissionDate, calculateLOS(p.admissionDate), 
-       p.dob, calculateAge(p.dob), p.diagnosis, p.doctor
-    ]);
+    const data = patients.map(p => [p.bed, p.type, p.name, p.admissionDate, calculateLOS(p.admissionDate), p.dob, calculateAge(p.dob), p.diagnosis, p.doctor]);
     downloadCSV(data, ["Cuarto", "IC/HO", "Nombre", "Ingreso", "Dias", "Nacimiento", "Edad", "Dx", "Tratante"], "Censo_General.csv");
   };
 
@@ -84,8 +78,7 @@ export default function Census({ user }) {
             .filter(p => !filterDoc || p.doctor === filterDoc || (filterDoc === 'Otro' && !DOCTORS.includes(p.doctor)))
             .filter(p => !filterRes || p.resident === filterRes)
             .map(p => (
-            <div key={p.id} onClick={() => setSelectedPatient(p)} 
-                 className={`p-3 rounded-lg border-l-8 shadow-sm cursor-pointer active:scale-95 transition ${getCardColor(p)}`}>
+            <div key={p.id} onClick={() => setSelectedPatient(p)} className={`p-3 rounded-lg border-l-8 shadow-sm cursor-pointer active:scale-95 transition ${getCardColor(p)}`}>
                <div className="flex justify-between items-start">
                   <div className="flex-1 pr-2">
                      <div className="flex items-center gap-2 mb-1">
@@ -102,7 +95,6 @@ export default function Census({ user }) {
                       <button onClick={(e) => toggleStatus(e, p)} className="">
                           {p.status === 'done' ? <CheckSquare size={30} className="text-blue-600"/> : <Square size={30} className="text-red-400"/>}
                       </button>
-                      
                       <div className="flex items-center gap-2 mt-2">
                          <span className="text-[10px] font-bold text-slate-400">{calculateLOS(p.admissionDate)}d</span>
                          <button onClick={(e) => dischargePatient(e, p)} className="bg-slate-100 p-1 rounded hover:bg-red-100 text-slate-500 hover:text-red-500 border">
@@ -124,10 +116,8 @@ export default function Census({ user }) {
 export function PatientFormModal({ onClose, mode, initialData }) {
   const [form, setForm] = useState(initialData || { 
       name: '', bed: '', type: 'HO', doctor: '', resident: '', admissionDate: new Date().toISOString().split('T')[0], dob: '', diagnosis: '',
-      antecedents: { dm: false, has: false, cancer: false, other: '' },
-      allergies: ''
+      antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
   });
-  
   const [isOtherDoc, setIsOtherDoc] = useState(false);
   const [isOtherRes, setIsOtherRes] = useState(false);
 
@@ -141,11 +131,8 @@ export function PatientFormModal({ onClose, mode, initialData }) {
   const handleSubmit = async (e) => {
       e.preventDefault();
       try {
-          if (mode === 'create') {
-            await addDoc(collection(db, "patients"), { ...form, status: 'pending', hasPending: false, discharged: false, notes: [], checklist: [] });
-          } else {
-            await updateDoc(doc(db, "patients", form.id), form);
-          }
+          if (mode === 'create') await addDoc(collection(db, "patients"), { ...form, status: 'pending', hasPending: false, discharged: false, notes: [], checklist: [] });
+          else await updateDoc(doc(db, "patients", form.id), form);
           onClose();
       } catch (err) { alert("Error: " + err.message); }
   };
@@ -161,7 +148,6 @@ export function PatientFormModal({ onClose, mode, initialData }) {
                   </div>
                   <input required placeholder="Nombre Completo" className="w-full p-2 border rounded" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
                   
-                  {/* ANTECEDENTES Y ALERGIAS (NUEVO) */}
                   <div className="bg-slate-50 p-2 rounded border">
                       <p className="text-xs font-bold text-gray-500 mb-1">Antecedentes</p>
                       <div className="flex gap-2 mb-2 text-sm">
@@ -174,12 +160,8 @@ export function PatientFormModal({ onClose, mode, initialData }) {
                   </div>
 
                   <div className="space-y-1">
-                      <select required={!isOtherDoc} className="w-full p-2 border rounded text-xs" 
-                              value={isOtherDoc ? 'Otro' : form.doctor} 
-                              onChange={e=>{
-                                  if(e.target.value==='Otro') { setIsOtherDoc(true); setForm({...form, doctor: ''}); }
-                                  else { setIsOtherDoc(false); setForm({...form, doctor:e.target.value}); }
-                              }}>
+                      <select required={!isOtherDoc} className="w-full p-2 border rounded text-xs" value={isOtherDoc ? 'Otro' : form.doctor} 
+                              onChange={e=>{ if(e.target.value==='Otro') { setIsOtherDoc(true); setForm({...form, doctor: ''}); } else { setIsOtherDoc(false); setForm({...form, doctor:e.target.value}); }}}>
                           <option value="">Seleccionar Tratante...</option>
                           {DOCTORS.map(d=><option key={d} value={d}>{d}</option>)}
                           <option value="Otro">Otro / Agregar Nuevo</option>
@@ -188,12 +170,8 @@ export function PatientFormModal({ onClose, mode, initialData }) {
                   </div>
 
                   <div className="space-y-1">
-                      <select required={!isOtherRes} className="w-full p-2 border rounded text-xs" 
-                              value={isOtherRes ? 'Otro' : form.resident} 
-                              onChange={e=>{
-                                  if(e.target.value==='Otro') { setIsOtherRes(true); setForm({...form, resident: ''}); }
-                                  else { setIsOtherRes(false); setForm({...form, resident:e.target.value}); }
-                              }}>
+                      <select required={!isOtherRes} className="w-full p-2 border rounded text-xs" value={isOtherRes ? 'Otro' : form.resident} 
+                              onChange={e=>{ if(e.target.value==='Otro') { setIsOtherRes(true); setForm({...form, resident: ''}); } else { setIsOtherRes(false); setForm({...form, resident:e.target.value}); }}}>
                           <option value="">Seleccionar Residente...</option>
                           {RESIDENTS.map(r=><option key={r} value={r}>{r}</option>)}
                           <option value="Otro">Otro / Agregar Nuevo</option>
