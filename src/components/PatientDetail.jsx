@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { calculateAge } from '../utils';
-import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy } from 'lucide-react';
+import { calculateAge, calculateDaysSince } from '../utils';
+import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Activity } from 'lucide-react';
 import { PatientFormModal } from './Census';
 
 export default function PatientDetail({ patient, onClose, user }) {
   const [activeTab, setActiveTab] = useState('notes');
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
+  
   const [visitForm, setVisitForm] = useState({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '' });
+  const [sondaForm, setSondaForm] = useState({ type: 'Foley', fr: '', date: new Date().toISOString().split('T')[0] });
   const [simpleNote, setSimpleNote] = useState('');
   const [newTask, setNewTask] = useState('');
   
@@ -21,6 +23,7 @@ export default function PatientDetail({ patient, onClose, user }) {
   const saveNote = async () => {
       let content = {};
       if (noteType === 'visita') { if(!visitForm.subj) return alert("Falta subjetivo"); content = { ...visitForm }; } 
+      else if (noteType === 'sonda') { content = { ...sondaForm }; }
       else { if(!simpleNote) return alert("Nota vacía"); content = { text: simpleNote }; }
 
       const newNote = { id: Date.now().toString(), type: noteType, author: getUserName(), timestamp: new Date().toISOString(), content };
@@ -81,6 +84,18 @@ export default function PatientDetail({ patient, onClose, user }) {
                             <textarea className="w-full border rounded p-2 text-sm h-16 bg-slate-50 focus:bg-white" placeholder="Análisis y Plan" value={visitForm.plan} onChange={e=>setVisitForm({...visitForm, plan:e.target.value})}/>
                             <div className="flex gap-2 pt-2"><button onClick={saveNote} className="flex-1 bg-blue-600 text-white py-3 rounded font-bold text-sm shadow-md">Guardar Nota</button></div>
                         </div>
+                    ) : noteType === 'sonda' ? (
+                        <div className="space-y-3">
+                            <div className="flex gap-2">
+                                <select className="flex-1 border p-2 rounded text-sm" onChange={e=>setSondaForm({...sondaForm, type: e.target.value})}><option>Foley</option><option>JJ</option><option>Nefrostomía</option><option>Cistostomía</option></select>
+                                <input placeholder="Fr" className="w-20 border p-2 rounded text-sm text-center" onChange={e=>setSondaForm({...sondaForm, fr: e.target.value})}/>
+                            </div>
+                            <div className="flex flex-col">
+                                <label className="text-xs text-gray-500 font-bold">Fecha de Colocación</label>
+                                <input type="date" className="border p-2 rounded text-sm" value={sondaForm.date} onChange={e=>setSondaForm({...sondaForm, date: e.target.value})}/>
+                            </div>
+                            <button onClick={saveNote} className="w-full bg-blue-600 text-white py-3 rounded font-bold text-sm shadow">Guardar Sonda</button>
+                        </div>
                     ) : (
                         <div className="space-y-2"><textarea className="w-full border rounded p-2 text-sm h-20" placeholder={noteType === 'imagen' ? 'Pegar URL de imagen...' : 'Escribir nota...'} value={simpleNote} onChange={e=>setSimpleNote(e.target.value)}/><button onClick={saveNote} className="w-full bg-blue-600 text-white py-3 rounded font-bold text-sm shadow">Guardar</button></div>
                     )}
@@ -91,6 +106,12 @@ export default function PatientDetail({ patient, onClose, user }) {
                              <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b pb-1"><span>{new Date(note.timestamp).toLocaleDateString('es-MX', {day:'2-digit', month:'short'})} {new Date(note.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • <span className="text-blue-600 font-bold">{note.author}</span></span><div className="flex gap-2 items-center"><span className="uppercase font-bold bg-slate-100 px-1 rounded text-[10px]">{note.type}</span><button onClick={() => deleteNote(note.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div></div>
                              {note.type === 'visita' ? (
                                  <div className="text-sm space-y-1"><p className="text-gray-800">{note.content.subj}</p><div className="text-xs bg-slate-50 p-2 rounded border grid grid-cols-2 gap-2 text-slate-600"><span>TA: {note.content.ta} / FC: {note.content.fc}</span><span>T: {note.content.temp} / GU: {note.content.gu}</span></div><p className="font-medium text-blue-900 mt-1">P: {note.content.plan}</p><button onClick={() => copyMSJ(note.content)} className="mt-2 text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 flex items-center gap-1 font-bold w-full justify-center"><Copy size={12}/> Copiar MSJ</button></div>
+                             ) : note.type === 'sonda' ? (
+                                 <div className="text-sm text-gray-800">
+                                     <p className="font-bold text-blue-900">{note.content.type} {note.content.fr} Fr</p>
+                                     <p className="text-xs text-gray-500">Colocada: {new Date(note.content.date).toLocaleDateString()}</p>
+                                     <p className="text-xs font-bold text-red-500 bg-red-50 p-1 inline-block rounded mt-1">Días de permanencia: {calculateDaysSince(note.content.date)} días</p>
+                                 </div>
                              ) : (<div className="text-sm text-gray-800 break-words">{note.type === 'imagen' ? <a href={note.content.text} target="_blank" className="text-blue-600 underline flex gap-1 items-center"><LinkIcon size={14}/> Ver Imagen</a> : note.content.text}</div>)}
                         </div>
                     ))}

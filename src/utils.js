@@ -13,6 +13,14 @@ export const calculateLOS = (admissionDate) => {
   return Math.round(Math.abs((secondDate - firstDate) / oneDay));
 };
 
+export const calculateDaysSince = (dateString) => {
+  if (!dateString) return 0;
+  const oneDay = 24 * 60 * 60 * 1000;
+  const firstDate = new Date(dateString);
+  const secondDate = new Date();
+  return Math.floor((secondDate - firstDate) / oneDay);
+};
+
 export const downloadCSV = (data, headers, filename) => {
   const csvContent = "data:text/csv;charset=utf-8," 
     + [headers.join(","), ...data.map(e => e.join(","))].join("\n");
