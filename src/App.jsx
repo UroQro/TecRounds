@@ -5,11 +5,11 @@ import Login from './components/Login';
 import Census from './components/Census';
 import Surgery from './components/Surgery';
 import Discharges from './components/Discharges';
-import { LogOut, Activity, ClipboardList, Archive, Scissors } from 'lucide-react';
+import { LogOut, ClipboardList, Archive, Scissors } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState('login'); // login, census, or, discharges
+  const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,30 +22,27 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleLogout = () => {
-    signOut(auth);
-  };
+  const handleLogout = () => signOut(auth);
+  const getUserName = () => user && user.email ? user.email.split('@')[0] : "";
 
   if (loading) return <div className="h-screen flex items-center justify-center">Cargando...</div>;
-
   if (!user) return <Login />;
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-slate-100">
-      {/* Navbar */}
       <header className="bg-blue-900 text-white p-3 shadow-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-2">
                 <h1 className="text-lg font-bold">Rounds TecSalud</h1>
-                <div className="text-xs flex items-center gap-2">
-                    <span className="opacity-80">{user.email}</span>
-                    <button onClick={handleLogout}><LogOut size={16}/></button>
+                <div className="text-xs flex items-center gap-2 font-mono bg-blue-800 px-2 py-1 rounded">
+                    <span className="uppercase">{getUserName()}</span>
+                    <button onClick={handleLogout}><LogOut size={14}/></button>
                 </div>
             </div>
-            <nav className="flex space-x-1 overflow-x-auto pb-1">
-                <NavBtn active={view === 'census'} onClick={() => setView('census')} icon={<ClipboardList size={16}/>} label="Censo" />
-                <NavBtn active={view === 'or'} onClick={() => setView('or')} icon={<Scissors size={16}/>} label="Quirófano" />
-                <NavBtn active={view === 'discharges'} onClick={() => setView('discharges')} icon={<Archive size={16}/>} label="Egresos" />
+            <nav className="flex space-x-2 overflow-x-auto pb-1">
+                <NavBtn active={view==='census'} onClick={()=>setView('census')} label="Censo" icon={<ClipboardList size={16}/>} />
+                <NavBtn active={view==='or'} onClick={()=>setView('or')} label="Quirófano" icon={<Scissors size={16}/>} />
+                <NavBtn active={view==='discharges'} onClick={()=>setView('discharges')} label="Egresos" icon={<Archive size={16}/>} />
             </nav>
         </div>
       </header>
@@ -59,10 +56,8 @@ export default function App() {
   );
 }
 
-const NavBtn = ({ active, onClick, icon, label }) => (
-    <button onClick={onClick} 
-       className={`flex items-center gap-1 px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap
-       ${active ? 'bg-white text-blue-900 shadow-sm' : 'bg-blue-800 text-blue-100 hover:bg-blue-700'}`}>
-       {icon} {label}
+const NavBtn = ({ active, onClick, label, icon }) => (
+    <button onClick={onClick} className={`flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${active ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-200 hover:bg-blue-800'}`}>
+        {icon} {label}
     </button>
 );
