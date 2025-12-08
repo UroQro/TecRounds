@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function Login() {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -21,7 +22,17 @@ export default function Login() {
     e.preventDefault(); setError('');
     if (masterPass !== 'urotec123') return setError("Contraseña maestra incorrecta.");
     const email = username.trim() + FAKE_DOMAIN;
-    try { await createUserWithEmailAndPassword(auth, email, password); } 
+    
+    try { 
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password); 
+        // Crear registro en colección 'users' para poder listarlos en el admin panel
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+            name: username.toUpperCase(),
+            email: email,
+            role: 'resident',
+            createdAt: new Date().toISOString()
+        });
+    } 
     catch (err) { setError(err.message); }
   };
 
@@ -35,7 +46,7 @@ export default function Login() {
                 <div className="bg-red-50 p-3 rounded border border-red-100">
                     <label className="text-xs font-bold text-red-800 block mb-1">Clave Maestra</label>
                     <input type="password" value={masterPass} onChange={e=>setMasterPass(e.target.value)} 
-                           className="w-full p-2 border border-red-200 rounded text-sm" placeholder="urotec123" required />
+                           className="w-full p-2 border border-red-200 rounded text-sm bg-white" placeholder="********" required />
                 </div>
             )}
             <div>
