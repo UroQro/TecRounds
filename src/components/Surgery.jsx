@@ -42,22 +42,34 @@ export default function Surgery({ user }) {
 
   const getStyle = (s) => {
       if (s.cancelled) return "bg-gray-50 border-gray-200 opacity-50"; 
-      
-      // COMPLETADO
       if (s.completed) {
          if (s.location === 'Instituto') return "bg-green-100 border-green-500";
-         return "bg-blue-100 border-blue-600"; // HZH y Otros -> Azul
+         return "bg-blue-100 border-blue-600";
       }
-
-      // PENDIENTE
       if (s.location === 'HZH') return "bg-red-50 border-red-500";
       if (s.location === 'Instituto') return "bg-orange-50 border-orange-500";
-      return "bg-gray-100 border-gray-400"; // Otros -> Gris
+      return "bg-gray-100 border-gray-400";
   };
 
-  // Logic for grouping by date
+  const getDayOpacity = (dateStr) => {
+      // Comparar fechas para opacidad
+      const today = new Date().toISOString().split('T')[0];
+      if (dateStr < today) return 'hidden'; // Ocultar pasado
+      if (dateStr === today) return 'opacity-100'; // Hoy
+      return 'opacity-60'; // Futuro
+  };
+
+  // Logic for grouping by date and filtering (Client Side)
+  const today = new Date().toISOString().split('T')[0];
   let lastDate = null;
-  const filteredList = surgeries.filter(s => { if(!filterRes) return true; if(filterRes === 'Por Asignar') return !s.resident; return s.resident === filterRes; });
+  
+  // Filter list: hide past surgeries from view (but keep in DB)
+  const filteredList = surgeries.filter(s => { 
+      if (s.date < today) return false; // Hide past
+      if(!filterRes) return true; 
+      if(filterRes === 'Por Asignar') return !s.resident; 
+      return s.resident === filterRes; 
+  });
 
   return (
     <div className="pb-24">
@@ -67,20 +79,20 @@ export default function Surgery({ user }) {
        </div>
        <div className="space-y-3">
            {filteredList.map(s => {
-               // Date Separator Logic
                const dateObj = new Date(s.date + 'T12:00:00');
                const dateStr = dateObj.toLocaleDateString('es-MX', {weekday: 'long', day: 'numeric', month: 'long'});
                const showHeader = s.date !== lastDate;
                lastDate = s.date;
+               const opacityClass = getDayOpacity(s.date);
 
                return (
                <React.Fragment key={s.id}>
                    {showHeader && (
-                       <h3 className="text-xs font-bold text-gray-500 uppercase mt-6 mb-2 pl-1 border-b border-gray-200 pb-1">
-                           {dateStr}
+                       <h3 className={`text-xs font-bold text-gray-500 uppercase mt-6 mb-2 pl-1 border-b border-gray-200 pb-1 ${opacityClass}`}>
+                           {dateStr} {s.date === today && <span className="text-blue-600 ml-2">(HOY)</span>}
                        </h3>
                    )}
-                   <div className={`rounded-lg shadow-sm border-l-8 p-3 relative transition-all duration-300 ${getStyle(s)}`}>
+                   <div className={`rounded-lg shadow-sm border-l-8 p-3 relative transition-all duration-300 ${getStyle(s)} ${opacityClass}`}>
                        
                        <div className={`flex justify-between text-xs font-bold mb-1 ${s.cancelled ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
                            <span>{s.time} hrs</span>
@@ -115,7 +127,7 @@ export default function Surgery({ user }) {
                </React.Fragment>
                );
            })}
-           {surgeries.length === 0 && <p className="text-center text-gray-400 mt-10">No hay cirugías programadas.</p>}
+           {filteredList.length === 0 && <p className="text-center text-gray-400 mt-10">No hay cirugías próximas.</p>}
        </div>
        <button onClick={()=>{setEditingSurgery(null); setShowModal(true)}} className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl hover:bg-blue-700 transition z-20"><Plus size={28} /></button>
        {showModal && <SurgeryModal onClose={()=>setShowModal(false)} initialData={editingSurgery} />}

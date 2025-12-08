@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import Login from './components/Login';
 import Census from './components/Census';
 import Surgery from './components/Surgery';
@@ -12,11 +13,50 @@ export default function App() {
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
 
+  // LOGICA DE AUTO-RESET (23:59 MTY)
+  const checkDailyReset = async () => {
+      // Obtener fecha actual en formato string (YYYY-MM-DD) zona MTY
+      const now = new Date();
+      const todayStr = now.toLocaleDateString('es-MX', { timeZone: 'America/Monterrey' });
+      
+      const metaRef = doc(db, 'metadata', 'daily_reset');
+      
+      try {
+          const metaSnap = await getDoc(metaRef);
+          
+          // Si no existe registro o la fecha guardada es diferente a hoy -> RESETEAR
+          if (!metaSnap.exists() || metaSnap.data().date !== todayStr) {
+              console.log("Detectado cambio de día. Ejecutando Reset de Censo...");
+              
+              const batch = writeBatch(db);
+              
+              // 1. Resetear estatus de pacientes a 'pending'
+              const q = query(collection(db, 'patients'), where('status', '==', 'done'));
+              const snapshot = await getDocs(q);
+              snapshot.docs.forEach(doc => {
+                  batch.update(doc.ref, { status: 'pending' });
+              });
+
+              // 2. Guardar fecha de hoy para no volver a correrlo
+              batch.set(metaRef, { date: todayStr });
+              
+              await batch.commit();
+              console.log("Censo reseteado exitosamente.");
+          }
+      } catch (e) {
+          console.error("Error en auto-reset:", e);
+      }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (currentUser) setView('census');
-      else setView('login');
+      if (currentUser) {
+          setView('census');
+          checkDailyReset(); // Checar reset al entrar
+      } else {
+          setView('login');
+      }
       setLoading(false);
     });
     return () => unsubscribe();
