@@ -41,7 +41,7 @@ export default function Surgery({ user }) {
   };
 
   const getStyle = (s) => {
-      if (s.cancelled) return "bg-gray-50 border-gray-200 opacity-50"; // Cancelado visual
+      if (s.cancelled) return "bg-gray-50 border-gray-200 opacity-50"; 
       
       // COMPLETADO
       if (s.completed) {
@@ -55,6 +55,10 @@ export default function Surgery({ user }) {
       return "bg-gray-100 border-gray-400"; // Otros -> Gris
   };
 
+  // Logic for grouping by date
+  let lastDate = null;
+  const filteredList = surgeries.filter(s => { if(!filterRes) return true; if(filterRes === 'Por Asignar') return !s.resident; return s.resident === filterRes; });
+
   return (
     <div className="pb-24">
        <div className="flex flex-col gap-2 mb-4">
@@ -62,43 +66,55 @@ export default function Surgery({ user }) {
            <select className="border rounded p-1 text-xs w-full" value={filterRes} onChange={e=>setFilterRes(e.target.value)}><option value="">Todos los Residentes</option><option value="Por Asignar">Por Asignar</option>{RESIDENTS.map(r=><option key={r} value={r}>{r}</option>)}</select>
        </div>
        <div className="space-y-3">
-           {surgeries.filter(s => { if(!filterRes) return true; if(filterRes === 'Por Asignar') return !s.resident; return s.resident === filterRes; }).map(s => (
-               <div key={s.id} className={`rounded-lg shadow-sm border-l-8 p-3 relative transition-all duration-300 ${getStyle(s)}`}>
-                   
-                   {/* HEADER */}
-                   <div className={`flex justify-between text-xs font-bold mb-1 ${s.cancelled ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
-                       <span>{new Date(s.date + 'T' + s.time).toLocaleDateString('es-MX', {weekday: 'short', day:'numeric', month:'short'})} - {s.time} hrs</span>
-                       <span className="bg-white/50 px-2 rounded">{s.location}</span>
-                   </div>
+           {filteredList.map(s => {
+               // Date Separator Logic
+               const dateObj = new Date(s.date + 'T12:00:00');
+               const dateStr = dateObj.toLocaleDateString('es-MX', {weekday: 'long', day: 'numeric', month: 'long'});
+               const showHeader = s.date !== lastDate;
+               lastDate = s.date;
 
-                   {/* BODY */}
-                   <h3 className={`font-bold text-lg leading-tight ${s.cancelled ? 'text-gray-400 line-through' : 'text-slate-800'}`}>{s.patientName}</h3>
-                   <p className={`font-medium text-sm mb-2 ${s.cancelled ? 'text-gray-400 line-through' : 'text-blue-900'}`}>{s.procedure}</p>
-                   
-                   <div className={`text-xs mt-1 flex justify-between items-center ${s.cancelled ? 'text-gray-300' : 'text-gray-500'}`}>
-                       <span>Tx: {s.doctor}</span>
-                       <span className={`px-2 py-0.5 rounded ${!s.resident && !s.cancelled ? 'bg-yellow-100 text-yellow-700 font-bold' : ''}`}>
-                           R: {s.resident || 'POR ASIGNAR'}
-                       </span>
-                   </div>
-
-                   {/* ACTIONS BAR */}
-                   <div className="flex justify-end gap-3 mt-3 border-t border-black/5 pt-2">
-                       <button onClick={()=>toggleComplete(s)} className="text-gray-400 hover:text-green-600 transition" title="Terminar/Pendiente">
-                           {s.completed ? <CheckCircle className="text-green-600 fill-green-100" size={20}/> : <CheckCircle size={20}/>}
-                       </button>
+               return (
+               <React.Fragment key={s.id}>
+                   {showHeader && (
+                       <h3 className="text-xs font-bold text-gray-500 uppercase mt-6 mb-2 pl-1 border-b border-gray-200 pb-1">
+                           {dateStr}
+                       </h3>
+                   )}
+                   <div className={`rounded-lg shadow-sm border-l-8 p-3 relative transition-all duration-300 ${getStyle(s)}`}>
                        
-                       <button onClick={()=>toggleCancel(s)} className="text-gray-400 hover:text-red-500 transition" title="Cancelar">
-                           {s.cancelled ? <XCircle className="text-red-500" size={20}/> : <XCircle size={20}/>}
-                       </button>
+                       <div className={`flex justify-between text-xs font-bold mb-1 ${s.cancelled ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
+                           <span>{s.time} hrs</span>
+                           <span className="bg-white/50 px-2 rounded">{s.location}</span>
+                       </div>
 
-                       <div className="w-px h-5 bg-gray-300 mx-1"></div>
+                       <h3 className={`font-bold text-lg leading-tight ${s.cancelled ? 'text-gray-400 line-through' : 'text-slate-800'}`}>{s.patientName}</h3>
+                       <p className={`font-medium text-sm mb-2 ${s.cancelled ? 'text-gray-400 line-through' : 'text-blue-900'}`}>{s.procedure}</p>
+                       
+                       <div className={`text-xs mt-1 flex justify-between items-center ${s.cancelled ? 'text-gray-300' : 'text-gray-500'}`}>
+                           <span>Tx: {s.doctor}</span>
+                           <span className={`px-2 py-0.5 rounded ${!s.resident && !s.cancelled ? 'bg-yellow-100 text-yellow-700 font-bold' : ''}`}>
+                               R: {s.resident || 'NO ASIGNADO'}
+                           </span>
+                       </div>
 
-                       <button onClick={()=>handleEdit(s)} className="text-blue-400 hover:text-blue-600"><Edit size={18}/></button>
-                       <button onClick={()=>handleDelete(s.id)} className="text-red-300 hover:text-red-500"><Trash2 size={18}/></button>
+                       <div className="flex justify-end gap-3 mt-3 border-t border-black/5 pt-2">
+                           <button onClick={()=>toggleComplete(s)} className="text-gray-400 hover:text-green-600 transition" title="Terminar/Pendiente">
+                               {s.completed ? <CheckCircle className="text-green-600 fill-green-100" size={20}/> : <CheckCircle size={20}/>}
+                           </button>
+                           
+                           <button onClick={()=>toggleCancel(s)} className="text-gray-400 hover:text-red-500 transition" title="Cancelar">
+                               {s.cancelled ? <XCircle className="text-red-500" size={20}/> : <XCircle size={20}/>}
+                           </button>
+
+                           <div className="w-px h-5 bg-gray-300 mx-1"></div>
+
+                           <button onClick={()=>handleEdit(s)} className="text-blue-400 hover:text-blue-600"><Edit size={18}/></button>
+                           <button onClick={()=>handleDelete(s.id)} className="text-red-300 hover:text-red-500"><Trash2 size={18}/></button>
+                       </div>
                    </div>
-               </div>
-           ))}
+               </React.Fragment>
+               );
+           })}
            {surgeries.length === 0 && <p className="text-center text-gray-400 mt-10">No hay cirugías programadas.</p>}
        </div>
        <button onClick={()=>{setEditingSurgery(null); setShowModal(true)}} className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl hover:bg-blue-700 transition z-20"><Plus size={28} /></button>
@@ -138,7 +154,7 @@ function SurgeryModal({ onClose, initialData }) {
                   </div>
                   <div className="space-y-1">
                       <select className="w-full p-2 border rounded text-xs" value={isOtherRes ? 'Otro' : form.resident} onChange={e=>{ if(e.target.value==='Otro') { setIsOtherRes(true); setForm({...form, resident: ''}); } else { setIsOtherRes(false); setForm({...form, resident:e.target.value}); }}}>
-                          <option value="">Residente (Opcional)</option>{RESIDENTS.map(r=><option key={r} value={r}>{r}</option>)}<option value="Otro">Otro / Agregar...</option>
+                          <option value="">No Asignado</option>{RESIDENTS.map(r=><option key={r} value={r}>{r}</option>)}<option value="Otro">Otro / Agregar...</option>
                       </select>
                       {isOtherRes && <input placeholder="Nombre Residente" required className="w-full p-2 border border-blue-300 bg-blue-50 rounded text-xs" value={form.resident} onChange={e=>setForm({...form, resident:e.target.value})}/>}
                   </div>
