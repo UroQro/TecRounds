@@ -1,16 +1,44 @@
+
+// Lista ordenada alfabéticamente
 export const DOCTORS = [
-  "Dr. Halun", "Dr. Cortes", "Dr. González Lecea", "Dr. Mendoza L", "Dr. Garza", 
-  "Dr. J. Lopez", "Dr. Urrutia", "Dr. H. Calderón", "Dr. Pineda", "Dra. Morin", 
-  "Dr. García", "Dr. De Leon", "Dr. López Galindo", "Dr. Glz Maldonado", "C. Lauro", 
-  "Dr. Arratia", "Dr. Colorado", "Dr. R. Glez", "Dr. Barrera", "Dr. Madero", 
-  "Dr. Lopez V", "Dr. Arambide", "Dr. Kaufmann", "Dr. Suarez", "Dr. Maya", 
-  "Dr. Ortiz", "Dr. Aragon", "Dra. Hernandez", "Dra. Martinez", "Dra. Turner", 
-  "Dr. Briseño", "Dr. Olvera"
-];
+  "C. Lauro",
+  "Dr. Aragon",
+  "Dr. Arambide", 
+  "Dr. Arrambide",
+  "Dr. Arratia",
+  "Dr. Barrera",
+  "Dr. Briseño",
+  "Dr. Colorado",
+  "Dr. Cortes",
+  "Dr. De Leon",
+  "Dr. García",
+  "Dr. Garza",
+  "Dr. Glz Maldonado",
+  "Dr. González Lecea",
+  "Dr. H. Calderón",
+  "Dr. Halun",
+  "Dr. J. Lopez",
+  "Dr. Kaufmann",
+  "Dr. Lopez V",
+  "Dr. López Galindo",
+  "Dr. Madero",
+  "Dr. Maya",
+  "Dr. Mendoza L",
+  "Dr. Olvera",
+  "Dr. Ortiz",
+  "Dr. Pineda",
+  "Dr. R. Glez",
+  "Dr. Suarez",
+  "Dr. Urrutia",
+  "Dra. Hernandez",
+  "Dra. Martinez",
+  "Dra. Morin",
+  "Dra. Turner"
+].sort();
 
 export const RESIDENTS = [
   "Chris", "Efrain", "Alexis", "Andres", "Roxana", "Diego", "Ivan", "Mariel", 
   "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"
-];
+].sort();
 
 export const LOCATIONS = ["HZH", "Angeles", "Clinic", "Oca", "CEM", "Cirugia", "DH", "DHE", "San Felipe", "San Vicente", "San Camilo", "Conchita", "Christus", "Instituto", "Otro"];

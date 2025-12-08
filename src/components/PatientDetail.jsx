@@ -22,14 +22,34 @@ export default function PatientDetail({ patient, onClose, user }) {
 
   const saveNote = async () => {
       let content = {};
-      if (noteType === 'visita') { if(!visitForm.subj) return alert("Falta subjetivo"); content = { ...visitForm }; } 
-      else if (noteType === 'sonda') { content = { ...sondaForm }; }
-      else { if(!simpleNote) return alert("Nota vacía"); content = { text: simpleNote }; }
+      
+      // LOGICA DE GUARDADO MEJORADA
+      if (noteType === 'visita') { 
+          if(!visitForm.subj) return alert("Falta subjetivo"); 
+          content = { ...visitForm }; 
+      } 
+      else if (noteType === 'sonda') { 
+          if(!sondaForm.fr) return alert("Ingresa el calibre (Fr)");
+          content = { ...sondaForm }; 
+      }
+      else { 
+          if(!simpleNote) return alert("Nota vacía"); 
+          content = { text: simpleNote }; 
+      }
 
-      const newNote = { id: Date.now().toString(), type: noteType, author: getUserName(), timestamp: new Date().toISOString(), content };
+      const newNote = { 
+          id: Date.now().toString(), 
+          type: noteType, 
+          author: getUserName(), 
+          timestamp: new Date().toISOString(), 
+          content 
+      };
+
       try {
           await updateDoc(doc(db, "patients", patient.id), { notes: arrayUnion(newNote) });
+          // Reset forms
           setVisitForm({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '' });
+          setSondaForm({ type: 'Foley', fr: '', date: new Date().toISOString().split('T')[0] });
           setSimpleNote('');
       } catch (err) { alert(err.message); }
   };
@@ -103,7 +123,14 @@ export default function PatientDetail({ patient, onClose, user }) {
                 <div className="space-y-3 pb-10">
                     {patient.notes?.slice().reverse().map(note => (
                         <div key={note.id} className="bg-white border rounded p-3 shadow-sm relative group">
-                             <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b pb-1"><span>{new Date(note.timestamp).toLocaleDateString('es-MX', {day:'2-digit', month:'short'})} {new Date(note.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • <span className="text-blue-600 font-bold">{note.author}</span></span><div className="flex gap-2 items-center"><span className="uppercase font-bold bg-slate-100 px-1 rounded text-[10px]">{note.type}</span><button onClick={() => deleteNote(note.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div></div>
+                             <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b pb-1">
+                                 <span className="font-mono">{new Date(note.timestamp).toLocaleDateString('es-MX', {day:'2-digit', month:'short'})} | {new Date(note.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                 <div className="flex gap-2 items-center">
+                                     <span className="uppercase font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-[10px]">{note.author}</span>
+                                     <span className="uppercase font-bold bg-slate-100 px-1 rounded text-[10px] text-gray-500">{note.type}</span>
+                                     <button onClick={() => deleteNote(note.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+                                 </div>
+                             </div>
                              {note.type === 'visita' ? (
                                  <div className="text-sm space-y-1"><p className="text-gray-800">{note.content.subj}</p><div className="text-xs bg-slate-50 p-2 rounded border grid grid-cols-2 gap-2 text-slate-600"><span>TA: {note.content.ta} / FC: {note.content.fc}</span><span>T: {note.content.temp} / GU: {note.content.gu}</span></div><p className="font-medium text-blue-900 mt-1">P: {note.content.plan}</p><button onClick={() => copyMSJ(note.content)} className="mt-2 text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 flex items-center gap-1 font-bold w-full justify-center"><Copy size={12}/> Copiar MSJ</button></div>
                              ) : note.type === 'sonda' ? (
