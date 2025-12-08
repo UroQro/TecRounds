@@ -17,9 +17,9 @@ export default function PatientDetail({ patient, onClose, user }) {
   const [simpleNote, setSimpleNote] = useState('');
   const [newTask, setNewTask] = useState('');
 
-  // Info Tab State
-  const [antecedents, setAntecedents] = useState(patient.antecedents || { dm: false, has: false, cancer: false, other: '' });
-  const [allergies, setAllergies] = useState(patient.allergies || '');
+  // Local state for info (if needed to display)
+  const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
+  const allergies = patient.allergies || 'Negadas';
 
   const getUserName = () => user.email ? user.email.split('@')[0] : 'User';
 
@@ -60,11 +60,6 @@ export default function PatientDetail({ patient, onClose, user }) {
       alert("Copiado!");
   };
 
-  const saveInfo = async () => {
-      await updateDoc(doc(db, "patients", patient.id), { antecedents, allergies });
-      alert("Datos guardados");
-  };
-
   const addTask = async () => {
       if(!newTask) return;
       const newList = [...(patient.checklist || []), { task: newTask, done: false }];
@@ -100,7 +95,7 @@ export default function PatientDetail({ patient, onClose, user }) {
 
       <div className="flex border-b text-sm font-bold text-center bg-white">
           <button onClick={()=>setActiveTab('notes')} className={`flex-1 p-3 ${activeTab==='notes'?'border-b-2 border-blue-600 text-blue-900':'text-gray-400'}`}>Evolución</button>
-          <button onClick={()=>setActiveTab('info')} className={`flex-1 p-3 ${activeTab==='info'?'border-b-2 border-blue-600 text-blue-900':'text-gray-400'}`}>Datos Generales</button>
+          <button onClick={()=>setActiveTab('info')} className={`flex-1 p-3 ${activeTab==='info'?'border-b-2 border-blue-600 text-blue-900':'text-gray-400'}`}>Ficha</button>
       </div>
 
       <div className="p-3 space-y-4 bg-slate-50 min-h-screen">
@@ -166,11 +161,6 @@ export default function PatientDetail({ patient, onClose, user }) {
                                     <input placeholder="K" className="lab-input" value={visitForm.k} onChange={e=>setVisitForm({...visitForm, k:e.target.value})}/>
                                     <input placeholder="Cl" className="lab-input" value={visitForm.cl} onChange={e=>setVisitForm({...visitForm, cl:e.target.value})}/>
                                 </div>
-                                <div className="grid grid-cols-3 gap-1">
-                                    <input placeholder="TP" className="lab-input" value={visitForm.tp} onChange={e=>setVisitForm({...visitForm, tp:e.target.value})}/>
-                                    <input placeholder="TTP" className="lab-input" value={visitForm.ttp} onChange={e=>setVisitForm({...visitForm, ttp:e.target.value})}/>
-                                    <input placeholder="INR" className="lab-input" value={visitForm.inr} onChange={e=>setVisitForm({...visitForm, inr:e.target.value})}/>
-                                </div>
                                 <style>{`.lab-input { border: 1px solid #e2e8f0; padding: 4px; font-size: 12px; text-align: center; border-radius: 4px; width: 100%; }`}</style>
                             </div>
 
@@ -222,24 +212,26 @@ export default function PatientDetail({ patient, onClose, user }) {
             </>
         ) : (
             <div className="p-4 bg-white rounded shadow-sm space-y-4">
-                 <h3 className="font-bold text-blue-900">Antecedentes</h3>
-                 <div className="space-y-2">
-                     <label className="flex items-center gap-2">
-                         <input type="checkbox" checked={antecedents.dm} onChange={e=>setAntecedents({...antecedents, dm:e.target.checked})} /> Diabetes Mellitus
-                     </label>
-                     <label className="flex items-center gap-2">
-                         <input type="checkbox" checked={antecedents.has} onChange={e=>setAntecedents({...antecedents, has:e.target.checked})} /> Hipertensión Arterial
-                     </label>
-                     <label className="flex items-center gap-2">
-                         <input type="checkbox" checked={antecedents.cancer} onChange={e=>setAntecedents({...antecedents, cancer:e.target.checked})} /> Cáncer / Oncológico
-                     </label>
-                     <input placeholder="Otros antecedentes..." className="w-full border p-2 rounded text-sm" value={antecedents.other} onChange={e=>setAntecedents({...antecedents, other:e.target.value})} />
+                 <h3 className="font-bold text-blue-900">Datos Clínicos</h3>
+                 <div className="space-y-1 text-sm">
+                     <div className="flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${antecedents.dm?'bg-red-500':'bg-gray-300'}`}></div> Diabetes Mellitus</div>
+                     <div className="flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${antecedents.has?'bg-red-500':'bg-gray-300'}`}></div> Hipertensión</div>
+                     <div className="flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${antecedents.cancer?'bg-red-500':'bg-gray-300'}`}></div> Onco</div>
                  </div>
-
-                 <h3 className="font-bold text-red-700 pt-4">Alergias</h3>
-                 <input placeholder="Escribe las alergias..." className="w-full border p-2 rounded text-sm" value={allergies} onChange={e=>setAllergies(e.target.value)} />
-                 
-                 <button onClick={saveInfo} className="w-full bg-blue-600 text-white py-3 rounded font-bold mt-4">Guardar Datos</button>
+                 <div className="border-t pt-2">
+                     <p className="text-xs font-bold text-gray-500">Otros Antecedentes:</p>
+                     <p>{antecedents.other || 'Ninguno'}</p>
+                 </div>
+                 <div className="border-t pt-2">
+                     <p className="text-xs font-bold text-gray-500">Alergias:</p>
+                     <p className="font-bold text-red-600">{allergies}</p>
+                 </div>
+                 <div className="border-t pt-2">
+                     <p className="text-xs font-bold text-gray-500">Tratante:</p>
+                     <p>{patient.doctor}</p>
+                     <p className="text-xs font-bold text-gray-500 mt-2">Residente:</p>
+                     <p>{patient.resident}</p>
+                 </div>
             </div>
         )}
       </div>

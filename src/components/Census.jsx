@@ -4,7 +4,7 @@ import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy } from '
 import { DOCTORS, RESIDENTS } from '../constants';
 import { calculateLOS, downloadCSV, calculateAge } from '../utils';
 import PatientDetail from './PatientDetail';
-import { Plus, CheckSquare, Square, Search } from 'lucide-react';
+import { Plus, CheckSquare, Square, Search, LogOut } from 'lucide-react';
 
 export default function Census({ user }) {
   const [patients, setPatients] = useState([]);
@@ -26,6 +26,16 @@ export default function Census({ user }) {
     e.stopPropagation();
     const newStatus = p.status === 'done' ? 'pending' : 'done';
     await updateDoc(doc(db, "patients", p.id), { status: newStatus });
+  };
+
+  const dischargePatient = async (e, p) => {
+      e.stopPropagation();
+      if(confirm(`¿Egresar (Dar de Alta) a ${p.name}?`)) {
+          await updateDoc(doc(db, "patients", p.id), { 
+              discharged: true, 
+              dischargeDate: new Date().toISOString() 
+          });
+      }
   };
 
   const getCardColor = (p) => {
@@ -88,11 +98,17 @@ export default function Census({ user }) {
                         <span className="font-semibold">{p.resident}</span>
                      </div>
                   </div>
-                  <div className="flex flex-col items-end justify-between h-full gap-4">
+                  <div className="flex flex-col items-end justify-between h-full gap-2">
                       <button onClick={(e) => toggleStatus(e, p)} className="">
                           {p.status === 'done' ? <CheckSquare size={30} className="text-blue-600"/> : <Square size={30} className="text-red-400"/>}
                       </button>
-                      <span className="text-[10px] font-bold text-slate-400">{calculateLOS(p.admissionDate)}d</span>
+                      
+                      <div className="flex items-center gap-2 mt-2">
+                         <span className="text-[10px] font-bold text-slate-400">{calculateLOS(p.admissionDate)}d</span>
+                         <button onClick={(e) => dischargePatient(e, p)} className="bg-slate-100 p-1 rounded hover:bg-red-100 text-slate-500 hover:text-red-500 border">
+                             <LogOut size={14}/>
+                         </button>
+                      </div>
                   </div>
                </div>
             </div>
@@ -106,11 +122,15 @@ export default function Census({ user }) {
 }
 
 export function PatientFormModal({ onClose, mode, initialData }) {
-  const [form, setForm] = useState(initialData || { name: '', bed: '', type: 'HO', doctor: '', resident: '', admissionDate: new Date().toISOString().split('T')[0], dob: '', diagnosis: '' });
+  const [form, setForm] = useState(initialData || { 
+      name: '', bed: '', type: 'HO', doctor: '', resident: '', admissionDate: new Date().toISOString().split('T')[0], dob: '', diagnosis: '',
+      antecedents: { dm: false, has: false, cancer: false, other: '' },
+      allergies: ''
+  });
+  
   const [isOtherDoc, setIsOtherDoc] = useState(false);
   const [isOtherRes, setIsOtherRes] = useState(false);
 
-  // Detectar si el doctor existente no está en la lista (es "Otro")
   useEffect(() => {
      if(mode === 'edit' && initialData) {
          if(!DOCTORS.includes(initialData.doctor) && initialData.doctor) setIsOtherDoc(true);
@@ -122,7 +142,7 @@ export function PatientFormModal({ onClose, mode, initialData }) {
       e.preventDefault();
       try {
           if (mode === 'create') {
-            await addDoc(collection(db, "patients"), { ...form, status: 'pending', hasPending: false, discharged: false, notes: [], checklist: [], antecedents: {} });
+            await addDoc(collection(db, "patients"), { ...form, status: 'pending', hasPending: false, discharged: false, notes: [], checklist: [] });
           } else {
             await updateDoc(doc(db, "patients", form.id), form);
           }
@@ -141,7 +161,18 @@ export function PatientFormModal({ onClose, mode, initialData }) {
                   </div>
                   <input required placeholder="Nombre Completo" className="w-full p-2 border rounded" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
                   
-                  {/* Doctor Logic */}
+                  {/* ANTECEDENTES Y ALERGIAS (NUEVO) */}
+                  <div className="bg-slate-50 p-2 rounded border">
+                      <p className="text-xs font-bold text-gray-500 mb-1">Antecedentes</p>
+                      <div className="flex gap-2 mb-2 text-sm">
+                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents.dm} onChange={e=>setForm({...form, antecedents: {...form.antecedents, dm:e.target.checked}})}/> DM</label>
+                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents.has} onChange={e=>setForm({...form, antecedents: {...form.antecedents, has:e.target.checked}})}/> HAS</label>
+                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents.cancer} onChange={e=>setForm({...form, antecedents: {...form.antecedents, cancer:e.target.checked}})}/> Onco</label>
+                      </div>
+                      <input placeholder="Otros antecedentes..." className="w-full p-1 border rounded text-xs mb-2" value={form.antecedents.other} onChange={e=>setForm({...form, antecedents: {...form.antecedents, other:e.target.value}})} />
+                      <input placeholder="Alergias (Negar o especificar)" className="w-full p-1 border rounded text-xs border-red-200" value={form.allergies} onChange={e=>setForm({...form, allergies:e.target.value})} />
+                  </div>
+
                   <div className="space-y-1">
                       <select required={!isOtherDoc} className="w-full p-2 border rounded text-xs" 
                               value={isOtherDoc ? 'Otro' : form.doctor} 
@@ -156,7 +187,6 @@ export function PatientFormModal({ onClose, mode, initialData }) {
                       {isOtherDoc && <input placeholder="Escribe nombre del Tratante" className="w-full p-2 border border-blue-300 rounded text-xs bg-blue-50" value={form.doctor} onChange={e=>setForm({...form, doctor:e.target.value})} required />}
                   </div>
 
-                  {/* Resident Logic */}
                   <div className="space-y-1">
                       <select required={!isOtherRes} className="w-full p-2 border rounded text-xs" 
                               value={isOtherRes ? 'Otro' : form.resident} 
