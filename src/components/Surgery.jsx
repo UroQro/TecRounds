@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, query, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { DOCTORS, RESIDENTS, LOCATIONS } from '../constants';
-import { Plus, Trash2, Calendar, Download, Edit } from 'lucide-react';
+import { Plus, Trash2, Calendar, Download, Edit, CheckCircle, XCircle } from 'lucide-react';
 import { downloadCSV } from '../utils';
 
 export default function Surgery({ user }) {
@@ -24,13 +24,35 @@ export default function Surgery({ user }) {
   const handleDelete = async (id) => { if(confirm("¿Borrar cirugía?")) await deleteDoc(doc(db, "surgeries", id)); };
 
   const exportSurgeries = () => {
-      const data = surgeries.map(s => [s.date, s.time, s.patientName, s.procedure, s.location, s.doctor, s.resident || 'Por Asignar']);
-      downloadCSV(data, ["Fecha", "Hora", "Paciente", "Procedimiento", "Sede", "Tratante", "Residente"], "Historico_Quirofano.csv");
+      const data = surgeries.map(s => [s.date, s.time, s.patientName, s.procedure, s.location, s.doctor, s.resident || 'Por Asignar', s.completed ? 'Si':'No']);
+      downloadCSV(data, ["Fecha", "Hora", "Paciente", "Procedimiento", "Sede", "Tratante", "Residente", "Completada"], "Historico_Quirofano.csv");
   };
 
-  const handleEdit = (s) => {
-      setEditingSurgery(s);
-      setShowModal(true);
+  const handleEdit = (s) => { setEditingSurgery(s); setShowModal(true); };
+
+  const toggleComplete = async (s) => {
+      await updateDoc(doc(db, "surgeries", s.id), { completed: !s.completed });
+  };
+
+  const toggleCancel = async (s) => {
+      if(confirm(s.cancelled ? "¿Reactivar cirugía?" : "¿Cancelar cirugía?")) {
+          await updateDoc(doc(db, "surgeries", s.id), { cancelled: !s.cancelled });
+      }
+  };
+
+  const getStyle = (s) => {
+      if (s.cancelled) return "bg-gray-50 border-gray-200 opacity-50"; // Cancelado visual
+      
+      // COMPLETADO
+      if (s.completed) {
+         if (s.location === 'Instituto') return "bg-green-100 border-green-500";
+         return "bg-blue-100 border-blue-600"; // HZH y Otros -> Azul
+      }
+
+      // PENDIENTE
+      if (s.location === 'HZH') return "bg-red-50 border-red-500";
+      if (s.location === 'Instituto') return "bg-orange-50 border-orange-500";
+      return "bg-gray-100 border-gray-400"; // Otros -> Gris
   };
 
   return (
@@ -41,14 +63,39 @@ export default function Surgery({ user }) {
        </div>
        <div className="space-y-3">
            {surgeries.filter(s => { if(!filterRes) return true; if(filterRes === 'Por Asignar') return !s.resident; return s.resident === filterRes; }).map(s => (
-               <div key={s.id} className="bg-white rounded-lg shadow-sm border-l-4 border-blue-600 p-3 relative">
-                   <div className="flex justify-between text-xs text-gray-500 font-bold mb-1"><span>{new Date(s.date + 'T' + s.time).toLocaleDateString('es-MX', {weekday: 'short', day:'numeric', month:'short'})} - {s.time} hrs</span><span className="bg-blue-100 text-blue-800 px-2 rounded">{s.location}</span></div>
-                   <h3 className="font-bold text-lg text-slate-800">{s.patientName}</h3>
-                   <p className="text-blue-600 font-medium text-sm">{s.procedure}</p>
-                   <div className="text-xs text-gray-500 mt-2 flex justify-between items-center"><span>Tx: {s.doctor}</span><span className={`px-2 py-0.5 rounded ${s.resident ? 'bg-slate-100' : 'bg-yellow-100 text-yellow-700 font-bold'}`}>R: {s.resident || 'POR ASIGNAR'}</span></div>
-                   <div className="absolute bottom-2 right-2 flex gap-2">
-                       <button onClick={()=>handleEdit(s)} className="text-blue-400 hover:text-blue-600"><Edit size={16}/></button>
-                       <button onClick={()=>handleDelete(s.id)} className="text-red-300 hover:text-red-500"><Trash2 size={16}/></button>
+               <div key={s.id} className={`rounded-lg shadow-sm border-l-8 p-3 relative transition-all duration-300 ${getStyle(s)}`}>
+                   
+                   {/* HEADER */}
+                   <div className={`flex justify-between text-xs font-bold mb-1 ${s.cancelled ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
+                       <span>{new Date(s.date + 'T' + s.time).toLocaleDateString('es-MX', {weekday: 'short', day:'numeric', month:'short'})} - {s.time} hrs</span>
+                       <span className="bg-white/50 px-2 rounded">{s.location}</span>
+                   </div>
+
+                   {/* BODY */}
+                   <h3 className={`font-bold text-lg leading-tight ${s.cancelled ? 'text-gray-400 line-through' : 'text-slate-800'}`}>{s.patientName}</h3>
+                   <p className={`font-medium text-sm mb-2 ${s.cancelled ? 'text-gray-400 line-through' : 'text-blue-900'}`}>{s.procedure}</p>
+                   
+                   <div className={`text-xs mt-1 flex justify-between items-center ${s.cancelled ? 'text-gray-300' : 'text-gray-500'}`}>
+                       <span>Tx: {s.doctor}</span>
+                       <span className={`px-2 py-0.5 rounded ${!s.resident && !s.cancelled ? 'bg-yellow-100 text-yellow-700 font-bold' : ''}`}>
+                           R: {s.resident || 'POR ASIGNAR'}
+                       </span>
+                   </div>
+
+                   {/* ACTIONS BAR */}
+                   <div className="flex justify-end gap-3 mt-3 border-t border-black/5 pt-2">
+                       <button onClick={()=>toggleComplete(s)} className="text-gray-400 hover:text-green-600 transition" title="Terminar/Pendiente">
+                           {s.completed ? <CheckCircle className="text-green-600 fill-green-100" size={20}/> : <CheckCircle size={20}/>}
+                       </button>
+                       
+                       <button onClick={()=>toggleCancel(s)} className="text-gray-400 hover:text-red-500 transition" title="Cancelar">
+                           {s.cancelled ? <XCircle className="text-red-500" size={20}/> : <XCircle size={20}/>}
+                       </button>
+
+                       <div className="w-px h-5 bg-gray-300 mx-1"></div>
+
+                       <button onClick={()=>handleEdit(s)} className="text-blue-400 hover:text-blue-600"><Edit size={18}/></button>
+                       <button onClick={()=>handleDelete(s.id)} className="text-red-300 hover:text-red-500"><Trash2 size={18}/></button>
                    </div>
                </div>
            ))}
@@ -61,7 +108,7 @@ export default function Surgery({ user }) {
 }
 
 function SurgeryModal({ onClose, initialData }) {
-    const [form, setForm] = useState(initialData || { date: '', time: '', patientName: '', procedure: '', location: '', doctor: '', resident: '' });
+    const [form, setForm] = useState(initialData || { date: '', time: '', patientName: '', procedure: '', location: '', doctor: '', resident: '', completed: false, cancelled: false });
     const [isOtherDoc, setIsOtherDoc] = useState(false);
     const [isOtherRes, setIsOtherRes] = useState(false);
 

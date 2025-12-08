@@ -36,19 +36,12 @@ export default function Census({ user }) {
   };
 
   const getCardColor = (p) => {
-    // 1. NOVER: Siempre blanco (Prioridad máxima visual)
     if (p.type === 'NOVER') return "bg-white border-gray-200";
-
-    // 2. Pendientes: Amarillo (Prioridad sobre visitado/no visitado)
     if (p.hasPending) return "bg-yellow-50 border-yellow-500";
-
-    // 3. SND: Lógica Naranja/Verde
     if (p.type === 'SND') {
         if (p.status === 'done') return "bg-green-50 border-green-500";
         return "bg-orange-50 border-orange-500";
     }
-
-    // 4. HO / IC: Lógica Rojo/Azul
     if (p.status === 'done') return "bg-blue-50 border-blue-500";
     return "bg-red-50 border-red-500";
   };
