@@ -21,6 +21,26 @@ export const calculateDaysSince = (dateString) => {
   return Math.floor((secondDate - firstDate) / oneDay);
 };
 
+export const calculateTreatmentDay = (dateString) => {
+  if (!dateString) return 0;
+  const diff = calculateDaysSince(dateString);
+  return diff + 1; 
+};
+
+export const calculateBMI = (weight, height) => {
+    if (!weight || !height) return '';
+    const h = parseFloat(height);
+    const w = parseFloat(weight);
+    if(h <= 0) return '';
+    const bmi = w / (h * h);
+    return bmi.toFixed(1);
+};
+
+// FIX: Obtener fecha local en formato YYYY-MM-DD
+export const getLocalISODate = () => {
+    return new Date().toLocaleDateString('en-CA'); // en-CA format is always YYYY-MM-DD
+};
+
 export const downloadCSV = (data, headers, filename) => {
   const csvContent = "data:text/csv;charset=utf-8," 
     + [headers.join(","), ...data.map(e => e.join(","))].join("\n");

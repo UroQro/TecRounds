@@ -2,25 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { addDoc, updateDoc, collection, doc } from 'firebase/firestore';
 import { DOCTORS, RESIDENTS } from '../constants';
+import { getLocalISODate } from '../utils';
 
 export default function PatientFormModal({ onClose, mode, initialData }) {
-  // Inicialización SEGURA para datos antiguos
-  const [form, setForm] = useState({ 
-      name: initialData?.name || '', 
-      bed: initialData?.bed || '', 
-      type: initialData?.type || 'HO', 
-      doctor: initialData?.doctor || '', 
-      resident: initialData?.resident || '', 
-      admissionDate: initialData?.admissionDate || new Date().toISOString().split('T')[0], 
-      dob: initialData?.dob || '', 
-      diagnosis: initialData?.diagnosis || '',
-      weight: initialData?.weight || '', 
-      height: initialData?.height || '',
-      // IMPORTANTE: Asegurar que antecedents exista
-      antecedents: initialData?.antecedents || { dm: false, has: false, cancer: false, other: '' }, 
-      allergies: initialData?.allergies || ''
+  const [form, setForm] = useState(initialData || { 
+      name: '', bed: '', type: 'HO', doctor: '', resident: '', admissionDate: getLocalISODate(), dob: '', diagnosis: '',
+      weight: '', height: '',
+      antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
   });
-  
   const [isOtherDoc, setIsOtherDoc] = useState(false);
   const [isOtherRes, setIsOtherRes] = useState(false);
 
@@ -35,7 +24,7 @@ export default function PatientFormModal({ onClose, mode, initialData }) {
       e.preventDefault();
       try {
           if (mode === 'create') await addDoc(collection(db, "patients"), { ...form, status: 'pending', hasPending: false, discharged: false, notes: [], checklist: [] });
-          else await updateDoc(doc(db, "patients", initialData.id), form);
+          else await updateDoc(doc(db, "patients", form.id), form);
           onClose();
       } catch (err) { alert("Error: " + err.message); }
   };
@@ -59,11 +48,11 @@ export default function PatientFormModal({ onClose, mode, initialData }) {
                   <div className="bg-slate-50 p-2 rounded border">
                       <p className="text-xs font-bold text-gray-500 mb-1">Antecedentes</p>
                       <div className="flex gap-2 mb-2 text-sm">
-                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents.dm} onChange={e=>setForm({...form, antecedents: {...form.antecedents, dm:e.target.checked}})}/> DM</label>
-                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents.has} onChange={e=>setForm({...form, antecedents: {...form.antecedents, has:e.target.checked}})}/> HAS</label>
-                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents.cancer} onChange={e=>setForm({...form, antecedents: {...form.antecedents, cancer:e.target.checked}})}/> Onco</label>
+                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents?.dm || false} onChange={e=>setForm({...form, antecedents: {...form.antecedents, dm:e.target.checked}})}/> DM</label>
+                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents?.has || false} onChange={e=>setForm({...form, antecedents: {...form.antecedents, has:e.target.checked}})}/> HAS</label>
+                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents?.cancer || false} onChange={e=>setForm({...form, antecedents: {...form.antecedents, cancer:e.target.checked}})}/> Onco</label>
                       </div>
-                      <input placeholder="Otros antecedentes..." className="w-full p-1 border rounded text-xs mb-2" value={form.antecedents.other} onChange={e=>setForm({...form, antecedents: {...form.antecedents, other:e.target.value}})} />
+                      <input placeholder="Otros antecedentes..." className="w-full p-1 border rounded text-xs mb-2" value={form.antecedents?.other || ''} onChange={e=>setForm({...form, antecedents: {...form.antecedents, other:e.target.value}})} />
                       <input placeholder="Alergias" className="w-full p-1 border rounded text-xs border-red-200" value={form.allergies} onChange={e=>setForm({...form, allergies:e.target.value})} />
                   </div>
 
