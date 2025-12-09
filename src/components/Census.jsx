@@ -38,7 +38,7 @@ export default function Census({ user }) {
 
   if (selectedPatient) return <PatientDetail patient={selectedPatient} onClose={() => setSelectedPatient(null)} user={user} />;
 
-  // SORT: NOVER at bottom
+  // SORT: NOVER al final
   const sortedPatients = [...patients].sort((a, b) => {
       if (a.type === 'NOVER' && b.type !== 'NOVER') return 1;
       if (a.type !== 'NOVER' && b.type === 'NOVER') return -1;

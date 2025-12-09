@@ -15,7 +15,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   const checkDailyReset = async () => {
-      const todayStr = getLocalISODate(); // USAR FECHA LOCAL
+      const todayStr = getLocalISODate();
       const metaRef = doc(db, 'metadata', 'daily_reset');
       try {
           const metaSnap = await getDoc(metaRef);

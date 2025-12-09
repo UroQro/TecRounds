@@ -36,9 +36,12 @@ export const calculateBMI = (weight, height) => {
     return bmi.toFixed(1);
 };
 
-// FIX: Obtener fecha local en formato YYYY-MM-DD
 export const getLocalISODate = () => {
-    return new Date().toLocaleDateString('en-CA'); // en-CA format is always YYYY-MM-DD
+    // Retorna YYYY-MM-DD en hora local
+    const d = new Date();
+    const offset = d.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(d - offset)).toISOString().slice(0, 10);
+    return localISOTime;
 };
 
 export const downloadCSV = (data, headers, filename) => {

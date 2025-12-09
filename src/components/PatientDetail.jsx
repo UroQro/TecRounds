@@ -17,6 +17,7 @@ export default function PatientDetail({ patient, onClose, user }) {
   const [simpleNote, setSimpleNote] = useState('');
   const [newTask, setNewTask] = useState('');
   
+  // SAFE DEFAULTS (BLINDAJE PARA DATOS VIEJOS)
   const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
   const allergies = patient.allergies || 'Negadas';
   const bmi = calculateBMI(patient.weight, patient.height);
