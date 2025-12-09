@@ -5,22 +5,11 @@ import { DOCTORS, RESIDENTS } from '../constants';
 import { getLocalISODate } from '../utils';
 
 export default function PatientFormModal({ onClose, mode, initialData }) {
-  // BLINDAJE DE DATOS PARA EVITAR PANTALLA BLANCA EN REGISTROS VIEJOS
-  const [form, setForm] = useState(() => {
-      const defaults = { 
-          name: '', bed: '', type: 'HO', doctor: '', resident: '', admissionDate: getLocalISODate(), dob: '', diagnosis: '',
-          weight: '', height: '',
-          antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
-      };
-      if (!initialData) return defaults;
-      // Mezclar datos existentes con defaults para asegurar que 'antecedents' exista
-      return {
-          ...defaults,
-          ...initialData,
-          antecedents: { ...defaults.antecedents, ...(initialData.antecedents || {}) }
-      };
+  // FORMULARIO LIMPIO: Sin peso/talla para evitar conflictos
+  const [form, setForm] = useState(initialData || { 
+      name: '', bed: '', type: 'HO', doctor: '', resident: '', admissionDate: getLocalISODate(), dob: '', diagnosis: '',
+      antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
   });
-
   const [isOtherDoc, setIsOtherDoc] = useState(false);
   const [isOtherRes, setIsOtherRes] = useState(false);
 
@@ -51,19 +40,14 @@ export default function PatientFormModal({ onClose, mode, initialData }) {
                   </div>
                   <input required placeholder="Nombre Completo" className="w-full p-2 border rounded" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
                   
-                  <div className="flex gap-2">
-                      <input placeholder="Peso (kg)" type="number" className="w-1/2 p-2 border rounded" value={form.weight} onChange={e=>setForm({...form, weight:e.target.value})} />
-                      <input placeholder="Talla (m)" type="number" step="0.01" className="w-1/2 p-2 border rounded" value={form.height} onChange={e=>setForm({...form, height:e.target.value})} />
-                  </div>
-
                   <div className="bg-slate-50 p-2 rounded border">
                       <p className="text-xs font-bold text-gray-500 mb-1">Antecedentes</p>
                       <div className="flex gap-2 mb-2 text-sm">
-                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents.dm} onChange={e=>setForm({...form, antecedents: {...form.antecedents, dm:e.target.checked}})}/> DM</label>
-                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents.has} onChange={e=>setForm({...form, antecedents: {...form.antecedents, has:e.target.checked}})}/> HAS</label>
-                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents.cancer} onChange={e=>setForm({...form, antecedents: {...form.antecedents, cancer:e.target.checked}})}/> Onco</label>
+                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents?.dm || false} onChange={e=>setForm({...form, antecedents: {...form.antecedents, dm:e.target.checked}})}/> DM</label>
+                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents?.has || false} onChange={e=>setForm({...form, antecedents: {...form.antecedents, has:e.target.checked}})}/> HAS</label>
+                         <label className="flex items-center gap-1"><input type="checkbox" checked={form.antecedents?.cancer || false} onChange={e=>setForm({...form, antecedents: {...form.antecedents, cancer:e.target.checked}})}/> Onco</label>
                       </div>
-                      <input placeholder="Otros antecedentes..." className="w-full p-1 border rounded text-xs mb-2" value={form.antecedents.other} onChange={e=>setForm({...form, antecedents: {...form.antecedents, other:e.target.value}})} />
+                      <input placeholder="Otros antecedentes..." className="w-full p-1 border rounded text-xs mb-2" value={form.antecedents?.other || ''} onChange={e=>setForm({...form, antecedents: {...form.antecedents, other:e.target.value}})} />
                       <input placeholder="Alergias" className="w-full p-1 border rounded text-xs border-red-200" value={form.allergies} onChange={e=>setForm({...form, allergies:e.target.value})} />
                   </div>
 

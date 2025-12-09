@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { calculateAge, calculateDaysSince } from '../utils';
-import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Activity } from 'lucide-react';
-import { PatientFormModal } from './Census';
+import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate } from '../utils';
+import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Activity, Scale } from 'lucide-react';
+import PatientFormModal from './PatientFormModal';
 
 export default function PatientDetail({ patient, onClose, user }) {
   const [activeTab, setActiveTab] = useState('notes');
@@ -11,7 +11,10 @@ export default function PatientDetail({ patient, onClose, user }) {
   const [showEdit, setShowEdit] = useState(false);
   
   const [visitForm, setVisitForm] = useState({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '' });
-  const [sondaForm, setSondaForm] = useState({ type: 'Foley', fr: '', date: new Date().toISOString().split('T')[0] });
+  const [sondaForm, setSondaForm] = useState({ type: 'Foley', fr: '', date: getLocalISODate() });
+  const [cultureForm, setCultureForm] = useState({ result: 'Negativo', germ: '', sens: '' });
+  const [abxForm, setAbxForm] = useState({ drug: '', startDate: getLocalISODate() });
+  const [somatoForm, setSomatoForm] = useState({ weight: '', height: '' });
   const [simpleNote, setSimpleNote] = useState('');
   const [newTask, setNewTask] = useState('');
   
@@ -22,8 +25,6 @@ export default function PatientDetail({ patient, onClose, user }) {
 
   const saveNote = async () => {
       let content = {};
-      
-      // LOGICA DE GUARDADO MEJORADA
       if (noteType === 'visita') { 
           if(!visitForm.subj) return alert("Falta subjetivo"); 
           content = { ...visitForm }; 
@@ -31,6 +32,16 @@ export default function PatientDetail({ patient, onClose, user }) {
       else if (noteType === 'sonda') { 
           if(!sondaForm.fr) return alert("Ingresa el calibre (Fr)");
           content = { ...sondaForm }; 
+      }
+      else if (noteType === 'cultivos') { content = { ...cultureForm }; }
+      else if (noteType === 'antibiotico') {
+          if(!abxForm.drug) return alert("Nombre antibiótico?");
+          content = { ...abxForm };
+      }
+      else if (noteType === 'somatometria') {
+          if(!somatoForm.weight || !somatoForm.height) return alert("Ingresa peso y talla");
+          const calculatedBMI = calculateBMI(somatoForm.weight, somatoForm.height);
+          content = { ...somatoForm, bmi: calculatedBMI };
       }
       else { 
           if(!simpleNote) return alert("Nota vacía"); 
@@ -49,7 +60,10 @@ export default function PatientDetail({ patient, onClose, user }) {
           await updateDoc(doc(db, "patients", patient.id), { notes: arrayUnion(newNote) });
           // Reset forms
           setVisitForm({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '' });
-          setSondaForm({ type: 'Foley', fr: '', date: new Date().toISOString().split('T')[0] });
+          setSondaForm({ type: 'Foley', fr: '', date: getLocalISODate() });
+          setCultureForm({ result: 'Negativo', germ: '', sens: '' });
+          setAbxForm({ drug: '', startDate: getLocalISODate() });
+          setSomatoForm({ weight: '', height: '' });
           setSimpleNote('');
       } catch (err) { alert(err.message); }
   };
@@ -69,7 +83,12 @@ export default function PatientDetail({ patient, onClose, user }) {
     <div className="bg-white min-h-full pb-20">
       <div className="bg-blue-50 border-b p-3 sticky top-0 z-20 flex gap-2 items-center shadow-sm">
           <button onClick={onClose}><ArrowLeft className="text-slate-600"/></button>
-          <div className="flex-1"><h2 className="text-lg font-bold text-blue-900 leading-none">{patient.name}</h2><div className="text-xs text-slate-600 mt-1">{patient.bed} • {calculateAge(patient.dob)}a • {patient.doctor}</div></div>
+          <div className="flex-1">
+              <h2 className="text-lg font-bold text-blue-900 leading-none">{patient.name}</h2>
+              <div className="text-xs text-slate-600 mt-1 flex gap-2 items-center">
+                  <span>{patient.bed} • {calculateAge(patient.dob)}a</span>
+              </div>
+          </div>
           <button onClick={()=>setShowEdit(true)} className="p-2 bg-white rounded-full shadow text-blue-600"><Edit size={16}/></button>
       </div>
       <div className="flex border-b text-sm font-bold text-center bg-white">
@@ -88,7 +107,7 @@ export default function PatientDetail({ patient, onClose, user }) {
                 </div>
                 <div className="bg-white border rounded-lg p-3 shadow-sm">
                     <div className="flex justify-between mb-2 items-center"><label className="text-xs font-bold text-slate-400 uppercase">Nueva Entrada</label>
-                        <select className="text-xs border rounded p-1 bg-slate-50" value={noteType} onChange={e=>setNoteType(e.target.value)}><option value="visita">Visita Diaria</option><option value="vitales">Signos Vitales</option><option value="cultivos">Cultivos</option><option value="antibiotico">Antibiótico</option><option value="procedimiento">Procedimiento</option><option value="imagen">Imagen (URL)</option><option value="sonda">Sonda/Drenaje</option><option value="texto">Nota Libre</option></select>
+                        <select className="text-xs border rounded p-1 bg-slate-50" value={noteType} onChange={e=>setNoteType(e.target.value)}><option value="visita">Visita Diaria</option><option value="vitales">Signos Vitales</option><option value="somatometria">Peso y Talla</option><option value="cultivos">Cultivos</option><option value="antibiotico">Antibiótico</option><option value="procedimiento">Procedimiento</option><option value="imagen">Imagen (URL)</option><option value="sonda">Sonda/Drenaje</option><option value="texto">Nota Libre</option></select>
                     </div>
                     {noteType === 'visita' ? (
                         <div className="space-y-2">
@@ -104,17 +123,34 @@ export default function PatientDetail({ patient, onClose, user }) {
                             <textarea className="w-full border rounded p-2 text-sm h-16 bg-slate-50 focus:bg-white" placeholder="Análisis y Plan" value={visitForm.plan} onChange={e=>setVisitForm({...visitForm, plan:e.target.value})}/>
                             <div className="flex gap-2 pt-2"><button onClick={saveNote} className="flex-1 bg-blue-600 text-white py-3 rounded font-bold text-sm shadow-md">Guardar Nota</button></div>
                         </div>
-                    ) : noteType === 'sonda' ? (
+                    ) : noteType === 'somatometria' ? (
                         <div className="space-y-3">
                             <div className="flex gap-2">
-                                <select className="flex-1 border p-2 rounded text-sm" onChange={e=>setSondaForm({...sondaForm, type: e.target.value})}><option>Foley</option><option>JJ</option><option>Nefrostomía</option><option>Cistostomía</option></select>
-                                <input placeholder="Fr" className="w-20 border p-2 rounded text-sm text-center" onChange={e=>setSondaForm({...sondaForm, fr: e.target.value})}/>
+                                <input placeholder="Peso (kg)" type="number" className="w-1/2 p-2 border rounded" value={somatoForm.weight} onChange={e=>setSomatoForm({...somatoForm, weight:e.target.value})}/>
+                                <input placeholder="Talla (m)" type="number" className="w-1/2 p-2 border rounded" value={somatoForm.height} onChange={e=>setSomatoForm({...somatoForm, height:e.target.value})}/>
                             </div>
-                            <div className="flex flex-col">
-                                <label className="text-xs text-gray-500 font-bold">Fecha de Colocación</label>
-                                <input type="date" className="border p-2 rounded text-sm" value={sondaForm.date} onChange={e=>setSondaForm({...sondaForm, date: e.target.value})}/>
-                            </div>
+                            <button onClick={saveNote} className="w-full bg-blue-600 text-white py-3 rounded font-bold text-sm shadow">Guardar Peso y Talla</button>
+                        </div>
+                    ) : noteType === 'sonda' ? (
+                        <div className="space-y-3">
+                            <div className="flex gap-2"><select className="flex-1 border p-2 rounded text-sm" onChange={e=>setSondaForm({...sondaForm, type: e.target.value})}><option>Foley</option><option>JJ</option><option>Nefrostomía</option><option>Cistostomía</option></select><input placeholder="Fr" className="w-20 border p-2 rounded text-sm text-center" onChange={e=>setSondaForm({...sondaForm, fr: e.target.value})}/></div>
+                            <div className="flex flex-col"><label className="text-xs text-gray-500 font-bold">Fecha de Colocación</label><input type="date" className="border p-2 rounded text-sm" value={sondaForm.date} onChange={e=>setSondaForm({...sondaForm, date: e.target.value})}/></div>
                             <button onClick={saveNote} className="w-full bg-blue-600 text-white py-3 rounded font-bold text-sm shadow">Guardar Sonda</button>
+                        </div>
+                    ) : noteType === 'cultivos' ? (
+                        <div className="space-y-3">
+                            <select className="w-full border p-2 rounded text-sm" onChange={e=>setCultureForm({...cultureForm, result: e.target.value})}><option>Negativo</option><option>Positivo</option></select>
+                            {cultureForm.result === 'Positivo' && (
+                                <><input placeholder="Germen / Especie" className="w-full border p-2 rounded text-sm" onChange={e=>setCultureForm({...cultureForm, germ: e.target.value})}/>
+                                <input placeholder="Sensibilidad (ej. Meropenem)" className="w-full border p-2 rounded text-sm" onChange={e=>setCultureForm({...cultureForm, sens: e.target.value})}/></>
+                            )}
+                            <button onClick={saveNote} className="w-full bg-blue-600 text-white py-3 rounded font-bold text-sm shadow">Guardar Cultivo</button>
+                        </div>
+                    ) : noteType === 'antibiotico' ? (
+                        <div className="space-y-3">
+                            <input placeholder="Nombre Antibiótico" className="w-full border p-2 rounded text-sm" onChange={e=>setAbxForm({...abxForm, drug: e.target.value})}/>
+                            <div className="flex flex-col"><label className="text-xs text-gray-500 font-bold">Fecha de Inicio</label><input type="date" className="border p-2 rounded text-sm" value={abxForm.startDate} onChange={e=>setAbxForm({...abxForm, startDate: e.target.value})}/></div>
+                            <button onClick={saveNote} className="w-full bg-blue-600 text-white py-3 rounded font-bold text-sm shadow">Guardar Esquema</button>
                         </div>
                     ) : (
                         <div className="space-y-2"><textarea className="w-full border rounded p-2 text-sm h-20" placeholder={noteType === 'imagen' ? 'Pegar URL de imagen...' : 'Escribir nota...'} value={simpleNote} onChange={e=>setSimpleNote(e.target.value)}/><button onClick={saveNote} className="w-full bg-blue-600 text-white py-3 rounded font-bold text-sm shadow">Guardar</button></div>
@@ -123,14 +159,23 @@ export default function PatientDetail({ patient, onClose, user }) {
                 <div className="space-y-3 pb-10">
                     {patient.notes?.slice().reverse().map(note => (
                         <div key={note.id} className="bg-white border rounded p-3 shadow-sm relative group">
-                             <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b pb-1"><span>{new Date(note.timestamp).toLocaleDateString('es-MX', {day:'2-digit', month:'short'})} {new Date(note.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • <span className="text-blue-600 font-bold">{note.author}</span></span><div className="flex gap-2 items-center"><span className="uppercase font-bold bg-slate-100 px-1 rounded text-[10px]">{note.type}</span><button onClick={() => deleteNote(note.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div></div>
+                             <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b pb-1"><span>{new Date(note.timestamp).toLocaleDateString('es-MX', {day:'2-digit', month:'short'})} | {new Date(note.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span><div className="flex gap-2 items-center"><span className="uppercase font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-[10px]">{note.author}</span><span className="uppercase font-bold bg-slate-100 px-1 rounded text-[10px] text-gray-500">{note.type}</span><button onClick={() => deleteNote(note.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button></div></div>
                              {note.type === 'visita' ? (
                                  <div className="text-sm space-y-1"><p className="text-gray-800">{note.content.subj}</p><div className="text-xs bg-slate-50 p-2 rounded border grid grid-cols-2 gap-2 text-slate-600"><span>TA: {note.content.ta} / FC: {note.content.fc}</span><span>T: {note.content.temp} / GU: {note.content.gu}</span></div><p className="font-medium text-blue-900 mt-1">P: {note.content.plan}</p><button onClick={() => copyMSJ(note.content)} className="mt-2 text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 flex items-center gap-1 font-bold w-full justify-center"><Copy size={12}/> Copiar MSJ</button></div>
+                             ) : note.type === 'somatometria' ? (
+                                 <div className="text-sm text-gray-800 flex justify-between items-center"><span className="font-bold">⚖️ Peso: {note.content.weight} kg</span><span>Talla: {note.content.height} m</span><span className="bg-blue-100 px-2 rounded font-bold text-blue-800">IMC: {note.content.bmi}</span></div>
                              ) : note.type === 'sonda' ? (
+                                 <div className="text-sm text-gray-800"><p className="font-bold text-blue-900">{note.content.type} {note.content.fr} Fr</p><p className="text-xs text-gray-500">Colocada: {new Date(note.content.date).toLocaleDateString()}</p><p className="text-xs font-bold text-red-500 bg-red-50 p-1 inline-block rounded mt-1">Días de permanencia: {calculateDaysSince(note.content.date)} días</p></div>
+                             ) : note.type === 'cultivos' ? (
                                  <div className="text-sm text-gray-800">
-                                     <p className="font-bold text-blue-900">{note.content.type} {note.content.fr} Fr</p>
-                                     <p className="text-xs text-gray-500">Colocada: {new Date(note.content.date).toLocaleDateString()}</p>
-                                     <p className="text-xs font-bold text-red-500 bg-red-50 p-1 inline-block rounded mt-1">Días de permanencia: {calculateDaysSince(note.content.date)} días</p>
+                                     <p className={`font-bold ${note.content.result==='Positivo'?'text-red-600':'text-green-600'}`}>CULTIVO {note.content.result.toUpperCase()}</p>
+                                     {note.content.result === 'Positivo' && <><p>🦠 {note.content.germ}</p><p className="text-xs bg-slate-100 p-1 mt-1 rounded">Sensible: {note.content.sens}</p></>}
+                                 </div>
+                             ) : note.type === 'antibiotico' ? (
+                                 <div className="text-sm text-gray-800">
+                                     <p className="font-bold text-purple-900">💊 {note.content.drug}</p>
+                                     <p className="text-xs text-gray-500">Inicio: {new Date(note.content.startDate).toLocaleDateString()}</p>
+                                     <p className="text-xs font-bold text-purple-600 bg-purple-50 p-1 inline-block rounded mt-1">Día {calculateTreatmentDay(note.content.startDate)} de tratamiento</p>
                                  </div>
                              ) : (<div className="text-sm text-gray-800 break-words">{note.type === 'imagen' ? <a href={note.content.text} target="_blank" className="text-blue-600 underline flex gap-1 items-center"><LinkIcon size={14}/> Ver Imagen</a> : note.content.text}</div>)}
                         </div>
