@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate } from '../utils';
 import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Activity, Scale } from 'lucide-react';
 import PatientFormModal from './PatientFormModal';
 
-export default function PatientDetail({ patient, onClose, user }) {
+export default function PatientDetail({ patient: initialPatient, onClose, user }) {
+  // USAR ESTADO LOCAL PARA ACTUALIZACIONES EN TIEMPO REAL
+  const [patient, setPatient] = useState(initialPatient);
   const [activeTab, setActiveTab] = useState('notes');
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
@@ -18,8 +20,19 @@ export default function PatientDetail({ patient, onClose, user }) {
   const [simpleNote, setSimpleNote] = useState('');
   const [newTask, setNewTask] = useState('');
   
+  // SAFE DEFAULTS
   const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
   const allergies = patient.allergies || 'Negadas';
+
+  // LISTENER EN TIEMPO REAL
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "patients", initialPatient.id), (docSnapshot) => {
+        if (docSnapshot.exists()) {
+            setPatient({ id: docSnapshot.id, ...docSnapshot.data() });
+        }
+    });
+    return () => unsub();
+  }, [initialPatient.id]);
 
   const getUserName = () => user.email ? user.email.split('@')[0] : 'User';
 
@@ -58,7 +71,6 @@ export default function PatientDetail({ patient, onClose, user }) {
 
       try {
           await updateDoc(doc(db, "patients", patient.id), { notes: arrayUnion(newNote) });
-          // Reset forms
           setVisitForm({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '' });
           setSondaForm({ type: 'Foley', fr: '', date: getLocalISODate() });
           setCultureForm({ result: 'Negativo', germ: '', sens: '' });

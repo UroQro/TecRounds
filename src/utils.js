@@ -37,11 +37,9 @@ export const calculateBMI = (weight, height) => {
 };
 
 export const getLocalISODate = () => {
-    // Retorna YYYY-MM-DD en hora local
     const d = new Date();
     const offset = d.getTimezoneOffset() * 60000;
-    const localISOTime = (new Date(d - offset)).toISOString().slice(0, 10);
-    return localISOTime;
+    return (new Date(d - offset)).toISOString().slice(0, 10);
 };
 
 export const downloadCSV = (data, headers, filename) => {
