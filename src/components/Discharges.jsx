@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { calculateLOS, downloadCSV, safeDateDisplay } from '../utils';
+import { calculateLOS, downloadCSV } from '../utils';
 import { Undo, Trash2 } from 'lucide-react';
 
 export default function Discharges() {
@@ -38,7 +38,7 @@ export default function Discharges() {
        <div className="space-y-2">
            {list.map(p => (
                <div key={p.id} className="bg-white p-3 rounded shadow-sm border flex justify-between items-center opacity-75 hover:opacity-100 transition">
-                   <div><p className="font-bold text-slate-700">{p.name}</p><p className="text-xs text-gray-500">Egreso: {safeDateDisplay(p.dischargeDate)}</p><p className="text-xs text-gray-400">{p.diagnosis}</p></div>
+                   <div><p className="font-bold text-slate-700">{p.name}</p><p className="text-xs text-gray-500">Egreso: {new Date(p.dischargeDate).toLocaleDateString()}</p><p className="text-xs text-gray-400">{p.diagnosis}</p></div>
                    <div className="flex flex-col items-end gap-2">
                        <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded">{calculateLOS(p.admissionDate)} días</span>
                        <div className="flex gap-2">
