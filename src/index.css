@@ -1,1 +1,6 @@
-@tailwind base; @tailwind components; @tailwind utilities; input, select, textarea { font-size: 16px; }
+@tailwind base; @tailwind components; @tailwind utilities; 
+    input, select, textarea { font-size: 16px; }
+    /* Ajuste para iPhone X+ */
+    .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    .pt-safe { padding-top: max(12px, env(safe-area-inset-top)); }
+    

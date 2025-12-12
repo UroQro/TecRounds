@@ -47,7 +47,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-slate-100">
-      <header className="bg-blue-900 text-white p-3 shadow-md sticky top-0 z-50">
+      <header className="bg-blue-900 text-white p-3 shadow-md sticky top-0 z-50 pt-safe">
         <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-2">
                 <h1 className="text-lg font-bold">Rounds TecSalud</h1>
@@ -63,12 +63,12 @@ export default function App() {
             </nav>
         </div>
       </header>
-      <main className="flex-1 p-2 max-w-5xl mx-auto w-full">
+      <main className="flex-1 p-2 max-w-5xl mx-auto w-full pb-safe">
         {view === 'census' && <Census user={user} />}
         {view === 'or' && <Surgery user={user} />}
         {view === 'discharges' && <Discharges />}
       </main>
-      <footer className="bg-slate-100 p-3 text-center text-[10px] text-slate-400 border-t">© 2026 Rosenzweig/Gemini</footer>
+      <footer className="bg-slate-100 p-3 text-center text-[10px] text-slate-400 border-t pb-8">© 2026 Rosenzweig/Gemini</footer>
     </div>
   );
 }
