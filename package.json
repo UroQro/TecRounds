@@ -1,7 +1,7 @@
 {
-  "name": "rounds-tecsalud-v34",
+  "name": "urologia-tecsalud-v35",
   "private": true,
-  "version": "34.0.0",
+  "version": "35.0.0",
   "type": "module",
   "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview" },
   "dependencies": {

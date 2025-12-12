@@ -47,11 +47,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-slate-100">
-      <header className="bg-blue-900 text-white p-3 shadow-md sticky top-0 z-50 pt-safe">
+      {/* HEADER NEGRO */}
+      <header className="bg-black text-white p-3 shadow-md sticky top-0 z-50 pt-safe">
         <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-2">
-                <h1 className="text-lg font-bold">Rounds TecSalud</h1>
-                <div className="text-xs flex items-center gap-2 font-mono bg-blue-800 px-2 py-1 rounded">
+                <h1 className="text-lg font-bold">Urología Tecsalud</h1>
+                <div className="text-xs flex items-center gap-2 font-mono bg-gray-800 px-2 py-1 rounded">
                     <span className="uppercase">{getUserName()}</span>
                     <button onClick={handleLogout}><LogOut size={14}/></button>
                 </div>
@@ -72,4 +73,4 @@ export default function App() {
     </div>
   );
 }
-const NavBtn = ({ active, onClick, label, icon }) => (<button onClick={onClick} className={`flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${active ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-200 hover:bg-blue-800'}`}>{icon} {label}</button>);
+const NavBtn = ({ active, onClick, label, icon }) => (<button onClick={onClick} className={`flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${active ? 'bg-white text-black shadow-sm' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>{icon} {label}</button>);

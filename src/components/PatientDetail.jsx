@@ -7,6 +7,7 @@ import PatientFormModal from './PatientFormModal';
 
 export default function PatientDetail({ patient: initialPatient, onClose, user }) {
   const [patient, setPatient] = useState(initialPatient);
+  const [activeTab, setActiveTab] = useState('notes');
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
@@ -39,13 +40,11 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
       setSimpleNote('');
   };
 
-  // Safe defaults
   const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
   const allergies = patient.allergies || 'Negadas';
   
-  // Try to find BMI from recent notes or calculate from profile if available
   const lastSomato = patient.notes?.find(n => n.type === 'somatometria')?.content;
-  const bmi = lastSomato ? lastSomato.bmi : calculateBMI(patient.weight, patient.height);
+  const bmi = lastSomato ? lastSomato.bmi : null;
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "patients", initialPatient.id), (docSnapshot) => {
@@ -85,7 +84,28 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
 
   const copyMSJ = (data) => {
       const f = data;
-      const text = `*${patient.name}*\n*S:* ${f.subj}\n*SV:* TA ${f.ta} | FC ${f.fc} | T ${f.temp}\n*GU:* ${f.gu}ml | *Dren:* ${f.drains}\n*Labs:* Hb ${f.hb} Leu ${f.leu} Plq ${f.plq} | Cr ${f.cr} BUN ${f.bun} | Na ${f.na} K ${f.k} Cl ${f.cl}\n*A/P:* ${f.plan}`;
+      let text = `*${patient.name}*`;
+
+      if (f.subj) text += `
+*S:* ${f.subj}`;
+      const sv = [];
+      if(f.ta) sv.push(`TA ${f.ta}`); if(f.fc) sv.push(`FC ${f.fc}`); if(f.temp) sv.push(`T ${f.temp}`);
+      if(sv.length > 0) text += `
+*SV:* ${sv.join(' | ')}`;
+      const liq = [];
+      if(f.gu) liq.push(`GU ${f.gu}ml`); if(f.drains) liq.push(`Dren: ${f.drains}`);
+      if(liq.length > 0) text += `
+*Líq:* ${liq.join(' | ')}`;
+      const labs = [];
+      if(f.hb) labs.push(`Hb ${f.hb}`); if(f.hto) labs.push(`Hto ${f.hto}`); if(f.leu) labs.push(`Leu ${f.leu}`); if(f.plq) labs.push(`Plq ${f.plq}`);
+      if(f.glu) labs.push(`Glu ${f.glu}`); if(f.cr) labs.push(`Cr ${f.cr}`); if(f.bun) labs.push(`BUN ${f.bun}`);
+      if(f.na) labs.push(`Na ${f.na}`); if(f.k) labs.push(`K ${f.k}`); if(f.cl) labs.push(`Cl ${f.cl}`);
+      if(f.tp) labs.push(`TP ${f.tp}`); if(f.ttp) labs.push(`TTP ${f.ttp}`); if(f.inr) labs.push(`INR ${f.inr}`);
+      if(labs.length > 0) text += `
+*Labs:* ${labs.join(' ')}`;
+      if (f.plan) text += `
+*A/P:* ${f.plan}`;
+
       navigator.clipboard.writeText(text);
       alert("Copiado!");
   };
@@ -184,7 +204,6 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
               </div>
           </div>
 
-          {/* 4. HISTORIAL */}
           <div className="space-y-3 pb-10">
               {patient.notes?.slice().reverse().map(note => (
                   <div key={note.id} className="bg-white border rounded p-3 shadow-sm relative group">

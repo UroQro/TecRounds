@@ -9,9 +9,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icon.svg'],
       manifest: {
-        name: 'Rounds TecSalud',
-        short_name: 'Rounds',
-        theme_color: '#1e3a8a',
+        name: 'Urología Tecsalud',
+        short_name: 'UroTec',
+        description: 'Gestión de Censo y Quirófano Urología',
+        theme_color: '#000000',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
