@@ -28,6 +28,7 @@ export default function Census({ user }) {
 
   const getCardColor = (p) => {
     if (p.type === 'NOVER') return "bg-white border-gray-200";
+    if (p.preDischarge) return "bg-purple-100 border-purple-500"; // PRE-ALTA (MORADO)
     if (p.hasPending) return "bg-yellow-50 border-yellow-500";
     if (p.type === 'SND') { return p.status === 'done' ? "bg-green-50 border-green-500" : "bg-orange-50 border-orange-500"; }
     return p.status === 'done' ? "bg-blue-50 border-blue-500" : "bg-red-50 border-red-500";
@@ -38,6 +39,7 @@ export default function Census({ user }) {
 
   if (selectedPatient) return <PatientDetail patient={selectedPatient} onClose={() => setSelectedPatient(null)} user={user} />;
 
+  // SORT: NOVER al final
   const sortedPatients = [...patients].sort((a, b) => {
       if (a.type === 'NOVER' && b.type !== 'NOVER') return 1;
       if (a.type !== 'NOVER' && b.type === 'NOVER') return -1;
