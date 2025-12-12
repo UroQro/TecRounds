@@ -28,10 +28,10 @@ export const calculateTreatmentDay = (dateString) => {
 };
 
 export const calculateBMI = (weight, height) => {
-    if (!weight || !height) return '';
+    if (!weight || !height) return null; // Retorna null si vacio
     const h = parseFloat(height);
     const w = parseFloat(weight);
-    if(h <= 0) return '';
+    if(h <= 0 || w <= 0) return null;
     const bmi = w / (h * h);
     return bmi.toFixed(1);
 };
