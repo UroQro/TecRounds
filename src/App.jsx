@@ -42,15 +42,16 @@ export default function App() {
   const handleLogout = () => signOut(auth);
   const getUserName = () => user && user.email ? user.email.split('@')[0] : "";
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-900 text-white">Cargando...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center">Cargando...</div>;
   if (!user) return <Login />;
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-slate-900 text-slate-100">
+    <div className="min-h-screen flex flex-col font-sans bg-slate-100">
+      {/* HEADER NEGRO */}
       <header className="bg-black text-white p-3 shadow-md sticky top-0 z-50 pt-safe">
         <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-2">
-                <h1 className="text-lg font-bold">Urología TecSalud</h1>
+                <h1 className="text-lg font-bold">Urología Tecsalud</h1>
                 <div className="text-xs flex items-center gap-2 font-mono bg-gray-800 px-2 py-1 rounded">
                     <span className="uppercase">{getUserName()}</span>
                     <button onClick={handleLogout}><LogOut size={14}/></button>
@@ -68,7 +69,7 @@ export default function App() {
         {view === 'or' && <Surgery user={user} />}
         {view === 'discharges' && <Discharges />}
       </main>
-      <footer className="bg-black p-3 text-center text-[10px] text-gray-500 border-t border-gray-800 pb-8">© 2026 Rosenzweig/Gemini</footer>
+      <footer className="bg-slate-100 p-3 text-center text-[10px] text-slate-400 border-t pb-8">© 2026 Rosenzweig/Gemini</footer>
     </div>
   );
 }
