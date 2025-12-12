@@ -28,7 +28,6 @@ export default function Census({ user }) {
 
   const getCardColor = (p) => {
     if (p.type === 'NOVER') return "bg-white border-gray-200";
-    if (p.preDischarge) return "bg-purple-100 border-purple-500"; // PRE-ALTA (MORADO)
     if (p.hasPending) return "bg-yellow-50 border-yellow-500";
     if (p.type === 'SND') { return p.status === 'done' ? "bg-green-50 border-green-500" : "bg-orange-50 border-orange-500"; }
     return p.status === 'done' ? "bg-blue-50 border-blue-500" : "bg-red-50 border-red-500";
@@ -62,7 +61,6 @@ export default function Census({ user }) {
                   <div className="flex-1 pr-2">
                      <div className="flex items-center gap-2 mb-1"><span className="text-xl font-black text-slate-800">{p.bed}</span><span className={`text-[10px] font-bold px-2 py-0.5 rounded border shadow-sm uppercase tracking-wider ${p.type==='NOVER'?'bg-gray-100 text-gray-500':'bg-white'}`}>{p.type}</span></div>
                      <h3 className="font-bold text-lg text-blue-900 leading-tight mb-1">{p.name}</h3>
-                     {/* RESTORED AGE AND DIAGNOSIS */}
                      <p className="text-xs text-gray-600 mb-1">{calculateAge(p.dob)} años • {p.diagnosis}</p>
                      <div className="text-xs text-slate-600 flex justify-between bg-white/50 p-1 rounded"><span>{p.doctor}</span><span className="font-semibold">{p.resident}</span></div>
                   </div>
