@@ -28,7 +28,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-200">
       <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-blue-900 mb-6 text-center">Rounds TecSalud</h1>
+        <h1 className="text-2xl font-bold text-blue-900 mb-6 text-center">Urología TecSalud</h1>
         {error && <div className="bg-red-100 text-red-700 p-3 rounded text-sm mb-4 border border-red-200">{error}</div>}
         <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
             {isRegistering && (

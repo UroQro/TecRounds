@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, query, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { DOCTORS, RESIDENTS, LOCATIONS } from '../constants';
 import { Plus, Trash2, Calendar, Download, Edit, CheckCircle, XCircle } from 'lucide-react';
-import { downloadCSV, getLocalISODate } from '../utils';
+import { downloadCSV, getLocalISODate, safeDateDisplay } from '../utils';
 
 export default function Surgery({ user }) {
   const [surgeries, setSurgeries] = useState([]);
