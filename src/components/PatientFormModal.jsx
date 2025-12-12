@@ -5,7 +5,6 @@ import { DOCTORS, RESIDENTS } from '../constants';
 import { getLocalISODate } from '../utils';
 
 export default function PatientFormModal({ onClose, mode, initialData }) {
-  // FORMULARIO LIMPIO: Sin peso/talla para evitar conflictos
   const [form, setForm] = useState(initialData || { 
       name: '', bed: '', type: 'HO', doctor: '', resident: '', admissionDate: getLocalISODate(), dob: '', diagnosis: '',
       antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
