@@ -5,7 +5,7 @@ import { DOCTORS, RESIDENTS } from '../constants';
 import { getLocalISODate } from '../utils';
 
 export default function PatientFormModal({ onClose, mode, initialData }) {
-  // Inicialización Segura
+  // FORMULARIO LIMPIO V28
   const [form, setForm] = useState(initialData || { 
       name: '', bed: '', type: 'HO', doctor: '', resident: '', admissionDate: getLocalISODate(), dob: '', diagnosis: '',
       antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
@@ -40,7 +40,6 @@ export default function PatientFormModal({ onClose, mode, initialData }) {
                   </div>
                   <input required placeholder="Nombre Completo" className="w-full p-2 border rounded" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
                   
-                  {/* ANTECEDENTES */}
                   <div className="bg-slate-50 p-2 rounded border">
                       <p className="text-xs font-bold text-gray-500 mb-1">Antecedentes</p>
                       <div className="flex gap-2 mb-2 text-sm">

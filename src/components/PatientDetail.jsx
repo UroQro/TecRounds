@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate } from '../utils';
-import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Activity, Scale, Home } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Activity } from 'lucide-react';
 import PatientFormModal from './PatientFormModal';
 
 export default function PatientDetail({ patient: initialPatient, onClose, user }) {
   const [patient, setPatient] = useState(initialPatient);
+  const [activeTab, setActiveTab] = useState('notes');
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
@@ -21,11 +22,11 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
   const [newTask, setNewTask] = useState('');
   const [labForm, setLabForm] = useState({ hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
 
-  // Safe Data Access
+  // Safe Data
   const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
   const allergies = patient.allergies || 'Negadas';
   
-  // Find latest BMI from notes if exists
+  // Find BMI from notes
   const latestSomato = patient.notes?.find(n => n.type === 'somatometria');
   const displayBMI = latestSomato ? latestSomato.content.bmi : '--';
   const displayWeight = latestSomato ? latestSomato.content.weight : '--';
@@ -53,11 +54,12 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
     return () => unsub();
   }, [initialPatient.id]);
 
-  const togglePreDischarge = async () => { await updateDoc(doc(db, "patients", patient.id), { preDischarge: !patient.preDischarge }); };
-
   const saveNote = async () => {
       let content = {};
-      if (noteType === 'visita') { if(!visitForm.subj) return alert("Falta subjetivo"); content = { ...visitForm }; } 
+      if (noteType === 'visita') { 
+          if(!visitForm.subj) return alert("Falta subjetivo"); 
+          content = { ...visitForm }; 
+      } 
       else if (noteType === 'laboratorios') { content = { ...labForm }; }
       else if (noteType === 'sonda') { if(!sondaForm.fr) return alert("Calibre?"); content = { ...sondaForm }; }
       else if (noteType === 'cultivos') { content = { ...cultureForm }; }
@@ -113,16 +115,18 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
           <button onClick={onClose}><ArrowLeft className="text-slate-600"/></button>
           <div className="flex-1">
               <h2 className="text-lg font-bold text-blue-900 leading-none">{patient.name}</h2>
-              <div className="text-xs text-slate-600 mt-1 flex gap-2 items-center"><span>{patient.bed}</span><span>{calculateAge(patient.dob)}a</span></div>
+              <div className="text-xs text-slate-600 mt-1 flex gap-2 items-center">
+                  <span>{patient.bed} • {calculateAge(patient.dob)}a</span>
+                  {bmi && <span className="bg-white px-1 rounded font-bold text-blue-800 border">IMC: {bmi}</span>}
+              </div>
           </div>
-          <div className="flex gap-2">
-              <button onClick={togglePreDischarge} className={`p-2 rounded-full shadow border ${patient.preDischarge ? 'bg-purple-600 text-white' : 'bg-white text-gray-400'}`} title="Pre-alta"><Home size={16}/></button>
-              <button onClick={()=>setShowEdit(true)} className="p-2 bg-white rounded-full shadow text-blue-600"><Edit size={16}/></button>
-          </div>
+          <button onClick={()=>setShowEdit(true)} className="p-2 bg-white rounded-full shadow text-blue-600"><Edit size={16}/></button>
       </div>
-
+      <div className="flex border-b text-sm font-bold text-center bg-white">
+          <button onClick={()=>setActiveTab('notes')} className={`flex-1 p-3 ${activeTab==='notes'?'border-b-2 border-blue-600 text-blue-900':'text-gray-400'}`}>Evolución</button>
+          <button onClick={()=>setActiveTab('info')} className={`flex-1 p-3 ${activeTab==='info'?'border-b-2 border-blue-600 text-blue-900':'text-gray-400'}`}>Ficha</button>
+      </div>
       <div className="p-3 space-y-4 bg-slate-50 min-h-screen">
-          {/* INFO CARD UNIFIED */}
           <div className="bg-white rounded p-3 shadow-sm border text-sm">
               <div className="flex justify-between items-center mb-2">
                   <div className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">Peso: {displayWeight}kg | Talla: {displayHeight}m | IMC: {displayBMI}</div>
@@ -135,8 +139,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
                   <span className="text-gray-500">{antecedents.other}</span>
               </div>
           </div>
-
-          {/* CHECKLIST */}
+          
           <div className="bg-yellow-50 border border-yellow-200 rounded p-3 shadow-sm">
              <h4 className="text-xs font-bold text-yellow-800 uppercase mb-2">Pendientes</h4>
              {patient.checklist?.map((t, i) => (
@@ -145,20 +148,22 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
              <div className="flex gap-2 mt-2"><input className="flex-1 border text-sm p-2 rounded" placeholder="Nuevo pendiente..." value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addTask()}/><button onClick={addTask} className="bg-yellow-500 text-white px-3 rounded font-bold text-xl">+</button></div>
           </div>
           
-          {/* EDITOR */}
           <div className={`bg-white border rounded-lg p-3 shadow-sm ${editingNote ? 'border-blue-500 ring-2 ring-blue-100' : ''}`}>
               <div className="flex justify-between mb-2 items-center"><label className="text-xs font-bold text-slate-400 uppercase">{editingNote ? 'Editando Nota' : 'Nueva Entrada'}</label>
                   <select className="text-xs border rounded p-1 bg-slate-50" value={noteType} onChange={e=>setNoteType(e.target.value)} disabled={!!editingNote}><option value="visita">Visita Diaria</option><option value="laboratorios">Laboratorios</option><option value="vitales">Signos Vitales</option><option value="somatometria">Peso y Talla</option><option value="cultivos">Cultivos</option><option value="antibiotico">Antibiótico</option><option value="procedimiento">Procedimiento</option><option value="imagen">Imagen (URL)</option><option value="sonda">Sonda/Drenaje</option><option value="texto">Nota Libre</option></select>
               </div>
               
-              {/* FORM FIELDS LOGIC (SAME AS BEFORE) */}
               {noteType === 'visita' || noteType === 'laboratorios' ? (
                   <div className="space-y-2">
                       {noteType === 'visita' && (
                           <>
                           <textarea className="w-full border rounded p-2 text-sm h-16 bg-slate-50 focus:bg-white" placeholder="Subjetivo" value={visitForm.subj} onChange={e=>setVisitForm({...visitForm, subj:e.target.value})}/>
                           <div className="flex gap-2"><input placeholder="TA" className="w-1/3 border text-center text-sm p-2 rounded" value={visitForm.ta} onChange={e=>setVisitForm({...visitForm, ta:e.target.value})}/><input placeholder="FC" className="w-1/3 border text-center text-sm p-2 rounded" value={visitForm.fc} onChange={e=>setVisitForm({...visitForm, fc:e.target.value})}/><input placeholder="T°" className="w-1/3 border text-center text-sm p-2 rounded" value={visitForm.temp} onChange={e=>setVisitForm({...visitForm, temp:e.target.value})}/></div>
-                          <div className="flex gap-2"><input placeholder="Gasto U" className="flex-1 border text-center text-sm p-2 rounded" value={visitForm.gu} onChange={e=>setVisitForm({...visitForm, gu:e.target.value})}/><input placeholder="Drenajes" className="flex-1 border text-center text-sm p-2 rounded" value={visitForm.drains} onChange={e=>setVisitForm({...visitForm, drains:e.target.value})}/></div>
+                          {/* RESPONSIVE DRENAJES FIX */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <input placeholder="Gasto U (ml)" className="w-full border p-2 rounded text-sm text-center" value={visitForm.gu} onChange={e=>setVisitForm({...visitForm, gu:e.target.value})}/>
+                              <input placeholder="Drenajes" className="w-full border p-2 rounded text-sm text-center" value={visitForm.drains} onChange={e=>setVisitForm({...visitForm, drains:e.target.value})}/>
+                          </div>
                           </>
                       )}
                       <div className="p-2 border rounded bg-slate-50"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Laboratorios</p>
@@ -187,7 +192,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
                   <button onClick={saveNote} className="flex-1 bg-blue-600 text-white py-3 rounded font-bold text-sm shadow-md">{editingNote ? 'Actualizar Nota' : 'Guardar'}</button>
               </div>
           </div>
-          
+
           <div className="space-y-3 pb-10">
               {patient.notes?.slice().reverse().map(note => (
                   <div key={note.id} className="bg-white border rounded p-3 shadow-sm relative group">
