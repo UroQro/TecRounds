@@ -7,20 +7,20 @@ import PatientFormModal from './PatientFormModal';
 
 export default function PatientDetail({ patient: initialPatient, onClose, user }) {
   const [patient, setPatient] = useState(initialPatient);
+  const [activeTab, setActiveTab] = useState('notes');
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
 
-  // Forms
   const [visitForm, setVisitForm] = useState({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
   const [sondaForm, setSondaForm] = useState({ type: 'Foley', fr: '', date: getLocalISODate() });
   const [cultureForm, setCultureForm] = useState({ result: 'Negativo', germ: '', sens: '' });
   const [abxForm, setAbxForm] = useState({ drug: '', startDate: getLocalISODate() });
   const [somatoForm, setSomatoForm] = useState({ weight: '', height: '' });
-  const [vitalForm, setVitalForm] = useState({ ta: '', fc: '', fr: '', temp: '', sat: '' });
   const [simpleNote, setSimpleNote] = useState('');
   const [newTask, setNewTask] = useState('');
   const [labForm, setLabForm] = useState({ hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
+  const [vitalForm, setVitalForm] = useState({ ta: '', fc: '', fr: '', temp: '', sat: '' });
 
   const loadNoteForEditing = (note) => {
       setEditingNote(note);
@@ -30,21 +30,21 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
       else if (note.type === 'cultivos') setCultureForm(note.content);
       else if (note.type === 'antibiotico') setAbxForm(note.content);
       else if (note.type === 'somatometria') setSomatoForm(note.content);
-      else if (note.type === 'vitales') setVitalForm(note.content);
       else if (note.type === 'laboratorios') setLabForm(note.content);
+      else if (note.type === 'vitales') setVitalForm(note.content);
       else setSimpleNote(note.content.text);
       window.scrollTo({ top: 300, behavior: 'smooth' });
   };
 
   const cancelEditing = () => {
       setEditingNote(null);
-      // Reset is handled by re-selection but cleaning state is good
       setVisitForm({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
       setSimpleNote('');
   };
 
   const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
   const allergies = patient.allergies || 'Negadas';
+  
   const lastSomato = patient.notes?.find(n => n.type === 'somatometria')?.content;
   const bmi = lastSomato ? lastSomato.bmi : calculateBMI(patient.weight, patient.height);
 
@@ -121,7 +121,6 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
       </div>
   );
 
-  // CLASE UNIVERSAL PARA INPUTS VISIBLES
   const inputClass = "w-full border dark:border-slate-600 rounded p-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-blue-500";
 
   return (
@@ -173,7 +172,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
                       <textarea className={inputClass + " h-24"} placeholder="Subjetivo" value={visitForm.subj} onChange={e=>setVisitForm({...visitForm, subj:e.target.value})}/>
                       <div className="flex gap-2"><input placeholder="TA" className={inputClass} value={visitForm.ta} onChange={e=>setVisitForm({...visitForm, ta:e.target.value})}/><input placeholder="FC" className={inputClass} value={visitForm.fc} onChange={e=>setVisitForm({...visitForm, fc:e.target.value})}/><input placeholder="T°" className={inputClass} value={visitForm.temp} onChange={e=>setVisitForm({...visitForm, temp:e.target.value})}/></div>
                       <div className="flex gap-2"><input placeholder="Gasto U" className={inputClass} value={visitForm.gu} onChange={e=>setVisitForm({...visitForm, gu:e.target.value})}/><input placeholder="Drenajes (Detallar)" className={inputClass} value={visitForm.drains} onChange={e=>setVisitForm({...visitForm, drains:e.target.value})}/></div>
-                      <div className="p-2 border dark:border-slate-600 rounded bg-slate-50 dark:bg-slate-700"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Laboratorios</p><div className="grid grid-cols-4 gap-1 mb-1"><input placeholder="Hb" className={inputClass} value={visitForm.hb} onChange={e=>setVisitForm({...visitForm, hb:e.target.value})}/><input placeholder="Hto" className={inputClass} value={visitForm.hto} onChange={e=>setVisitForm({...visitForm, hto:e.target.value})}/><input placeholder="Leu" className={inputClass} value={visitForm.leu} onChange={e=>setVisitForm({...visitForm, leu:e.target.value})}/><input placeholder="Plq" className={inputClass} value={visitForm.plq} onChange={e=>setVisitForm({...visitForm, plq:e.target.value})}/></div><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Glu" className={inputClass} value={visitForm.glu} onChange={e=>setVisitForm({...visitForm, glu:e.target.value})}/><input placeholder="Cr" className={inputClass} value={visitForm.cr} onChange={e=>setVisitForm({...visitForm, cr:e.target.value})}/><input placeholder="BUN" className={inputClass} value={visitForm.bun} onChange={e=>setVisitForm({...visitForm, bun:e.target.value})}/></div><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Na" className={inputClass} value={visitForm.na} onChange={e=>setVisitForm({...visitForm, na:e.target.value})}/><input placeholder="K" className={inputClass} value={visitForm.k} onChange={e=>setVisitForm({...visitForm, k:e.target.value})}/><input placeholder="Cl" className={inputClass} value={visitForm.cl} onChange={e=>setVisitForm({...visitForm, cl:e.target.value})}/></div><div className="grid grid-cols-3 gap-1"><input placeholder="TP" className={inputClass} value={visitForm.tp} onChange={e=>setVisitForm({...visitForm, tp:e.target.value})}/><input placeholder="TTP" className={inputClass} value={visitForm.ttp} onChange={e=>setVisitForm({...visitForm, ttp:e.target.value})}/><input placeholder="INR" className={inputClass} value={visitForm.inr} onChange={e=>setVisitForm({...visitForm, inr:e.target.value})}/></div></div>
+                      <div className="p-2 border dark:border-slate-600 rounded bg-slate-50 dark:bg-slate-700"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Laboratorios</p><div className="grid grid-cols-4 gap-1 mb-1"><input placeholder="Hb" className={inputClass} value={visitForm.hb} onChange={e=>setVisitForm({...visitForm, hb:e.target.value})}/><input placeholder="Hto" className={inputClass} value={visitForm.hto} onChange={e=>setVisitForm({...visitForm, hto:e.target.value})}/><input placeholder="Leu" className={inputClass} value={visitForm.leu} onChange={e=>setVisitForm({...visitForm, leu:e.target.value})}/><input placeholder="Plq" className={inputClass} value={visitForm.plq} onChange={e=>setVisitForm({...visitForm, plq:e.target.value})}/></div><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Glu" className={inputClass} value={visitForm.glu} onChange={e=>setVisitForm({...visitForm, glu:e.target.value})}/><input placeholder="Cr" className={inputClass} value={visitForm.cr} onChange={e=>setVisitForm({...visitForm, cr:e.target.value})}/><input placeholder="BUN" className={inputClass} value={visitForm.bun} onChange={e=>setVisitForm({...visitForm, bun:e.target.value})}/></div><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Na" className={inputClass} value={visitForm.na} onChange={e=>setVisitForm({...visitForm, na:e.target.value})}/><input placeholder="K" className={inputClass} value={visitForm.k} onChange={e=>setVisitForm({...visitForm, k:e.target.value})}/><input placeholder="Cl" className={inputClass} value={visitForm.cl} onChange={e=>setVisitForm({...visitForm, cl:e.target.value})}/></div><div className="grid grid-cols-3 gap-1"><input placeholder="TP" className={inputClass} value={visitForm.tp} onChange={e=>setVisitForm({...visitForm, tp:e.target.value})}/><input placeholder="TTP" className={inputClass} value={visitForm.ttp} onChange={e=>setVisitForm({...visitForm, ttp:e.target.value})}/><input placeholder="INR" className={inputClass} value={visitForm.inr} onChange={e=>setVisitForm({...visitForm, inr:e.target.value})}/></div><style>{`.lab-input { border: 1px solid #e2e8f0; padding: 4px; font-size: 12px; text-align: center; border-radius: 4px; width: 100%; }`}</style></div>
                       <textarea className={inputClass + " h-24"} placeholder="Análisis y Plan" value={visitForm.plan} onChange={e=>setVisitForm({...visitForm, plan:e.target.value})}/>
                   </div>
               )}
