@@ -32,7 +32,6 @@ export default function Surgery({ user }) {
   const toggleComplete = async (s) => { await updateDoc(doc(db, "surgeries", s.id), { completed: !s.completed }); };
   const toggleCancel = async (s) => { if(confirm(s.cancelled ? "¿Reactivar cirugía?" : "¿Cancelar cirugía?")) { await updateDoc(doc(db, "surgeries", s.id), { cancelled: !s.cancelled }); } };
   
-  // COLORS: Vivid for day, dark for night
   const getStyle = (s) => {
       if (s.cancelled) return "bg-gray-100 dark:bg-slate-800 border-gray-300 dark:border-slate-700 opacity-50"; 
       if (s.completed) { if (s.location === 'Instituto') return "bg-green-50 dark:bg-green-900/30 border-green-500"; return "bg-blue-50 dark:bg-blue-900/30 border-blue-600"; }
@@ -59,7 +58,6 @@ export default function Surgery({ user }) {
 
   return (
     <div className="pb-24">
-       {/* Filter Bar: Vivid White + Blue border in day */}
        <div className="flex flex-col gap-2 mb-4 bg-white dark:bg-slate-800 p-3 rounded border border-blue-100 dark:border-slate-700 shadow-md dark:shadow-sm transition-colors">
            <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><Calendar className="text-blue-600 dark:text-blue-400"/> Quirófano</h2><button onClick={exportSurgeries} className="bg-green-600 text-white text-xs px-3 py-1 rounded font-bold shadow flex gap-1 items-center hover:bg-green-700"><Download size={14}/> CSV Histórico</button></div>
            <select className="border border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded p-1 text-xs w-full" value={filterRes} onChange={e=>setFilterRes(e.target.value)}><option value="">Todos los Residentes</option><option value="Por Asignar">Por Asignar</option>{RESIDENTS.map(r=><option key={r} value={r}>{r}</option>)}</select>
@@ -75,7 +73,6 @@ export default function Surgery({ user }) {
                return (
                <React.Fragment key={s.id}>
                    {showHeader && <h3 className={`text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mt-6 mb-2 pl-1 border-b border-gray-200 dark:border-slate-700 pb-1 ${opacityClass}`}>{dateStr} {s.date === today && <span className="text-blue-600 dark:text-blue-400 ml-2">(HOY)</span>}</h3>}
-                   {/* Cards: Stronger shadow (shadow-md) in day mode */}
                    <div className={`rounded-lg shadow-md dark:shadow-sm border-l-8 p-3 relative transition-all duration-300 ${getStyle(s)} ${opacityClass}`}>
                        <div className={`flex justify-between text-xs font-bold mb-1 ${s.cancelled ? 'text-gray-400 line-through' : 'text-gray-600 dark:text-slate-300'}`}><span>{s.time} hrs</span><span className="bg-white/50 dark:bg-white/10 px-2 rounded">{s.location}</span></div>
                        <h3 className={`font-extrabold text-lg leading-tight ${s.cancelled ? 'text-gray-400 line-through' : 'text-slate-900 dark:text-white'}`}>{s.patientName}</h3>

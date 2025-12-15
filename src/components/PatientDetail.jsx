@@ -11,7 +11,6 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
   const [showEdit, setShowEdit] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
 
-  // Forms
   const [visitForm, setVisitForm] = useState({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
   const [sondaForm, setSondaForm] = useState({ type: 'Foley', fr: '', date: getLocalISODate() });
   const [cultureForm, setCultureForm] = useState({ result: 'Negativo', germ: '', sens: '' });
@@ -44,6 +43,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
 
   const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
   const allergies = patient.allergies || 'Negadas';
+  
   const lastSomato = patient.notes?.find(n => n.type === 'somatometria')?.content;
   const bmi = lastSomato ? lastSomato.bmi : calculateBMI(patient.weight, patient.height);
 
@@ -69,7 +69,11 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
       else if (noteType === 'cultivos') { content = { ...cultureForm }; }
       else if (noteType === 'antibiotico') { if(!abxForm.drug) return alert("Nombre?"); content = { ...abxForm }; }
       else if (noteType === 'somatometria') { if(!somatoForm.weight || !somatoForm.height) return alert("Faltan datos"); const calculatedBMI = calculateBMI(somatoForm.weight, somatoForm.height); content = { ...somatoForm, bmi: calculatedBMI }; }
-      else { if(!simpleNote) return alert("Nota vacía"); content = { text: simpleNote }; }
+      else { 
+          // FIX: Handle simple note types
+          if(!simpleNote) return alert("Nota vacía"); 
+          content = { text: simpleNote }; 
+      }
 
       try {
           if (editingNote) {
@@ -124,7 +128,6 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
 
   return (
     <div className="bg-gray-50 dark:bg-slate-900 min-h-full pb-20 transition-colors">
-      {/* Header: Brighter blue border in day mode */}
       <div className={`border-b border-blue-100 dark:border-slate-700 p-3 sticky top-0 z-20 flex gap-2 items-center shadow-sm ${patient.preDischarge ? 'bg-purple-50 dark:bg-purple-900' : 'bg-white dark:bg-slate-800'}`}>
           <button onClick={onClose}><ArrowLeft className="text-slate-600 dark:text-slate-300"/></button>
           <div className="flex-1">
@@ -139,7 +142,6 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
       </div>
 
       <div className="p-3 space-y-4 bg-gray-50 dark:bg-slate-900 min-h-screen">
-          {/* Cards: Stronger shadow in day mode */}
           <div className="bg-white dark:bg-slate-800 border border-blue-50 dark:border-slate-700 rounded p-3 text-xs shadow-md dark:shadow-sm text-slate-900 dark:text-slate-200">
              <div className="flex flex-wrap gap-2 mb-1">
                  {antecedents.dm && <span className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-0.5 rounded font-bold">DM</span>}
@@ -198,8 +200,8 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
               {noteType === 'antibiotico' && (
                   <div className="space-y-3"><input placeholder="Nombre Antibiótico" className={inputClass} onChange={e=>setAbxForm({...abxForm, drug: e.target.value})}/><div className="flex flex-col"><label className="text-xs text-gray-500 font-bold">Fecha de Inicio</label><input type="date" className={inputClass} value={abxForm.startDate} onChange={e=>setAbxForm({...abxForm, startDate: e.target.value})}/></div></div>
               )}
-              {noteType === 'texto' && (
-                  <div className="space-y-2"><textarea className={inputClass + " h-24"} placeholder="Escribir nota..." value={simpleNote} onChange={e=>setSimpleNote(e.target.value)}/></div>
+              {(noteType === 'texto' || noteType === 'procedimiento' || noteType === 'imagen') && (
+                  <div className="space-y-2"><textarea className={inputClass + " h-24"} placeholder={noteType === 'imagen' ? "Pegar URL de la imagen..." : "Escribir nota..."} value={simpleNote} onChange={e=>setSimpleNote(e.target.value)}/></div>
               )}
               
               <div className="flex gap-2 pt-2">
@@ -215,7 +217,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
                            <span className="font-mono">{new Date(note.timestamp).toLocaleDateString('es-MX', {day:'2-digit', month:'short'})} | {new Date(note.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                            <div className="flex gap-2 items-center">
                                <span className="uppercase font-extrabold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-slate-700 px-2 py-0.5 rounded text-[10px]">{note.author}</span>
-                               <span className="uppercase font-bold bg-gray-100 dark:bg-slate-700 px-1 rounded text-[10px] text-gray-500 dark:text-gray-400">{note.type}</span>
+                               <span className="uppercase font-bold bg-slate-100 dark:bg-slate-700 px-1 rounded text-[10px] text-gray-500 dark:text-gray-400">{note.type}</span>
                                <button onClick={() => loadNoteForEditing(note)} className="text-blue-400 hover:text-blue-600"><Edit size={14}/></button>
                                <button onClick={() => deleteNote(note.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
                            </div>

@@ -63,7 +63,7 @@ export default function App() {
       <header className="bg-black text-white p-3 shadow-md sticky top-0 z-50 pt-safe">
         <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-2">
-                <h1 className="text-lg font-bold">Urología Tecsalud</h1>
+                <h1 className="text-lg font-bold">Urología TecSalud</h1>
                 <div className="text-xs flex items-center gap-2 font-mono bg-gray-800 px-2 py-1 rounded">
                     <span className="uppercase">{getUserName()}</span>
                     <button onClick={handleLogout}><LogOut size={14}/></button>
@@ -85,5 +85,5 @@ export default function App() {
     </div>
   );
 }
-// NavBtn Active state: Now Blue instead of White for vibrancy
+// NavBtn Active state: Blue
 const NavBtn = ({ active, onClick, label, icon }) => (<button onClick={onClick} className={`flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${active ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>{icon} {label}</button>);

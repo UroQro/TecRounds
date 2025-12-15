@@ -42,7 +42,6 @@ export default function Discharges() {
 
   return (
     <div className="pb-20">
-       {/* Filter Bar: Vivid White + Blue border in day */}
        <div className="flex flex-col gap-3 mb-4 bg-white dark:bg-slate-800 p-3 rounded border border-blue-100 dark:border-slate-700 shadow-md dark:shadow-sm transition-colors">
            <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Historial de Egresos</h2><button onClick={exportHistory} className="bg-green-600 text-white text-xs px-3 py-2 rounded font-bold shadow hover:bg-green-700">Descargar CSV</button></div>
            <div className="relative">
@@ -53,7 +52,6 @@ export default function Discharges() {
        
        <div className="space-y-2">
            {filteredList.map(p => (
-               /* Cards: Stronger shadow (shadow-md) in day mode */
                <div key={p.id} className="bg-white dark:bg-slate-800 p-3 rounded shadow-md dark:shadow-sm border border-gray-200 dark:border-slate-700 flex justify-between items-center opacity-90 hover:opacity-100 transition">
                    <div><p className="font-bold text-slate-900 dark:text-slate-200">{p.name}</p><p className="text-xs text-gray-500 dark:text-slate-400">Egreso: {new Date(p.dischargeDate).toLocaleDateString()}</p><p className="text-xs text-gray-500 dark:text-slate-500">{p.diagnosis} • {p.doctor}</p></div>
                    <div className="flex flex-col items-end gap-2">

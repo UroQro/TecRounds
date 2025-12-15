@@ -13,4 +13,7 @@ export const RESIDENTS = [
   "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"
 ].sort();
 
-export const LOCATIONS = ["HZH", "Angeles", "Clinic", "Oca", "CEM", "Cirugia", "DH", "DHE", "San Felipe", "San Vicente", "San Camilo", "Conchita", "Christus", "Instituto", "Otro"];
+export const LOCATIONS = [
+  "HZH", "Angeles", "Clinic", "Oca", "CEM", "Cirugia", "DH", "DHE", 
+  "San Felipe", "San Vicente", "San Camilo", "Conchita", "Christus", "Instituto", "OnCare", "Otro"
+];

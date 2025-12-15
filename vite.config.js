@@ -6,7 +6,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icon.svg'],
       manifest: {
-        name: 'Urología Tecsalud',
+        name: 'Urología TecSalud',
         short_name: 'UroTec',
         theme_color: '#000000',
         background_color: '#ffffff',
