@@ -11,6 +11,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
   const [showEdit, setShowEdit] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
 
+  // Forms
   const [visitForm, setVisitForm] = useState({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
   const [sondaForm, setSondaForm] = useState({ type: 'Foley', fr: '', date: getLocalISODate() });
   const [cultureForm, setCultureForm] = useState({ result: 'Negativo', germ: '', sens: '' });
@@ -43,7 +44,6 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
 
   const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
   const allergies = patient.allergies || 'Negadas';
-  
   const lastSomato = patient.notes?.find(n => n.type === 'somatometria')?.content;
   const bmi = lastSomato ? lastSomato.bmi : calculateBMI(patient.weight, patient.height);
 
@@ -70,7 +70,6 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
       else if (noteType === 'antibiotico') { if(!abxForm.drug) return alert("Nombre?"); content = { ...abxForm }; }
       else if (noteType === 'somatometria') { if(!somatoForm.weight || !somatoForm.height) return alert("Faltan datos"); const calculatedBMI = calculateBMI(somatoForm.weight, somatoForm.height); content = { ...somatoForm, bmi: calculatedBMI }; }
       else { 
-          // FIX: Handle simple note types
           if(!simpleNote) return alert("Nota vacía"); 
           content = { text: simpleNote }; 
       }
@@ -88,9 +87,10 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
       } catch (err) { alert(err.message); }
   };
 
+  // SMART COPY: INCLUYE CAMA (BED)
   const copyMSJ = (data) => {
       const f = data;
-      let text = `*${patient.name}*`;
+      let text = `*${patient.bed}* - *${patient.name}*`;
 
       if (f.subj) text += `\n*S:* ${f.subj}`;
       const sv = [];

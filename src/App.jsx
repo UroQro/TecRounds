@@ -14,7 +14,6 @@ export default function App() {
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
 
-  // AUTO THEME: Day (8-20) Light, Night (20-8) Dark
   useEffect(() => {
       const updateTheme = () => {
           const hour = new Date().getHours();
@@ -55,11 +54,11 @@ export default function App() {
   const handleLogout = () => signOut(auth);
   const getUserName = () => user && user.email ? user.email.split('@')[0] : "";
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 dark:text-white">Cargando...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900 dark:text-white">Cargando...</div>;
   if (!user) return <Login />;
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-gray-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-500">
+    <div className="min-h-screen flex flex-col font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-500">
       <header className="bg-black text-white p-3 shadow-md sticky top-0 z-50 pt-safe">
         <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-2">
@@ -81,9 +80,8 @@ export default function App() {
         {view === 'or' && <Surgery user={user} />}
         {view === 'discharges' && <Discharges />}
       </main>
-      <footer className="bg-gray-100 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-200 dark:border-gray-800 pb-8">© 2026 Rosenzweig/Gemini</footer>
+      <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8">© 2026 Rosenzweig/Gemini</footer>
     </div>
   );
 }
-// NavBtn Active state: Blue
 const NavBtn = ({ active, onClick, label, icon }) => (<button onClick={onClick} className={`flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${active ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>{icon} {label}</button>);

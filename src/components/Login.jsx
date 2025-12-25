@@ -42,7 +42,7 @@ export default function Login() {
             )}
             <div><label className="text-sm font-bold text-slate-600 dark:text-gray-400 block mb-1">Usuario</label><input type="text" value={username} onChange={e=>setUsername(e.target.value)} className={inputClass} placeholder="EJ. ANDRES" required /></div>
             <div><label className="text-sm font-bold text-slate-600 dark:text-gray-400 block mb-1">Contraseña</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} className={inputClass.replace('uppercase','')} required /></div>
-            <button type="submit" className="w-full bg-blue-600 dark:bg-blue-700 text-white py-3 rounded-lg font-bold hover:opacity-90 transition shadow-lg">{isRegistering ? 'Crear Usuario' : 'Entrar'}</button>
+            <button type="submit" className="w-full bg-slate-900 dark:bg-blue-600 text-white py-3 rounded-lg font-bold hover:opacity-90 transition shadow-lg">{isRegistering ? 'Crear Usuario' : 'Entrar'}</button>
         </form>
         <div className="mt-6 text-center pt-4 border-t border-slate-200 dark:border-slate-700"><button onClick={() => {setIsRegistering(!isRegistering); setError('')}} className="text-sm text-blue-600 dark:text-blue-400 font-semibold hover:underline">{isRegistering ? '← Regresar al Login' : 'Crear usuario nuevo'}</button></div>
       </div>
