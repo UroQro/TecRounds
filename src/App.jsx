@@ -14,6 +14,7 @@ export default function App() {
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
 
+  // AUTO THEME: Day (8-20) Light, Night (20-8) Dark
   useEffect(() => {
       const updateTheme = () => {
           const hour = new Date().getHours();

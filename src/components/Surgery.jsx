@@ -22,12 +22,16 @@ export default function Surgery({ user }) {
   }, []);
 
   const handleDelete = async (id) => { if(confirm("¿Borrar cirugía?")) await deleteDoc(doc(db, "surgeries", id)); };
-  const exportSurgeries = () => { const data = surgeries.map(s => [s.date, s.time, s.patientName, s.procedure, s.location, s.doctor, s.resident || 'Por Asignar', s.completed ? 'Si':'No']); downloadCSV(data, ["Fecha", "Hora", "Paciente", "Procedimiento", "Sede", "Tratante", "Residente", "Completada"], "Historico_Quirofano.csv"); };
+
+  const exportSurgeries = () => {
+      const data = surgeries.map(s => [s.date, s.time, s.patientName, s.procedure, s.location, s.doctor, s.resident || 'Por Asignar', s.completed ? 'Si':'No']);
+      downloadCSV(data, ["Fecha", "Hora", "Paciente", "Procedimiento", "Sede", "Tratante", "Residente", "Completada"], "Historico_Quirofano.csv");
+  };
+
   const handleEdit = (s) => { setEditingSurgery(s); setShowModal(true); };
   const toggleComplete = async (s) => { await updateDoc(doc(db, "surgeries", s.id), { completed: !s.completed }); };
   const toggleCancel = async (s) => { if(confirm(s.cancelled ? "¿Reactivar cirugía?" : "¿Cancelar cirugía?")) { await updateDoc(doc(db, "surgeries", s.id), { cancelled: !s.cancelled }); } };
   
-  // VIVID COLORS FOR SURGERY CARDS
   const getStyle = (s) => {
       if (s.cancelled) return "bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 opacity-50"; 
       if (s.completed) return "bg-white dark:bg-green-900/30 border-l-[8px] border-green-600 dark:border-green-500 shadow-md"; 
@@ -82,7 +86,6 @@ export default function Surgery({ user }) {
                            <div className={`text-xs flex justify-between items-center ${s.cancelled ? 'text-gray-600' : 'text-gray-500 dark:text-gray-400'}`}>
                                <span>Tx: {s.doctor}</span>
                            </div>
-                           {/* DUAL RESIDENTS DISPLAY */}
                            <div className="flex gap-2">
                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${!s.resident ? 'bg-yellow-100 text-yellow-800' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200'}`}>
                                    {s.resident || 'No Asignado'}
