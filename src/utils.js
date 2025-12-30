@@ -42,9 +42,20 @@ export const getLocalISODate = () => {
     return (new Date(d - offset)).toISOString().slice(0, 10);
 };
 
+// CLEAN EXPORT FUNCTION
 export const downloadCSV = (data, headers, filename) => {
+  // Función para normalizar texto (quita acentos y ñ)
+  const clean = (str) => {
+      if (typeof str !== 'string') return str;
+      return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  };
+
   const csvContent = "data:text/csv;charset=utf-8," 
-    + [headers.join(","), ...data.map(e => e.join(","))].join("\n");
+    + [
+        headers.map(clean).join(","), 
+        ...data.map(row => row.map(cell => clean(String(cell || ''))).join(","))
+      ].join("\n");
+
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);

@@ -63,7 +63,7 @@ export default function App() {
       <header className="bg-black text-white p-3 shadow-md sticky top-0 z-50 pt-safe">
         <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-2">
-                <h1 className="text-lg font-bold">Urología Tecsalud</h1>
+                <h1 className="text-lg font-bold">Urología TecSalud</h1>
                 <div className="text-xs flex items-center gap-2 font-mono bg-gray-800 px-2 py-1 rounded">
                     <span className="uppercase">{getUserName()}</span>
                     <button onClick={handleLogout}><LogOut size={14}/></button>

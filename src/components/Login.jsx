@@ -30,7 +30,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100 dark:bg-slate-900 transition-colors">
       <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-xl w-full max-w-sm border border-slate-200 dark:border-slate-700">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 text-center">Urología Tecsalud</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 text-center">Urología TecSalud</h1>
         {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 p-3 rounded text-sm mb-4 border border-red-200 dark:border-red-700">{error}</div>}
         <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
             {isRegistering && (

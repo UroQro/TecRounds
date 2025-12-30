@@ -66,7 +66,7 @@ export default function Census({ user }) {
                      <div className="text-xs opacity-75 flex justify-between bg-black/5 dark:bg-white/5 p-1 rounded dark:text-slate-400 text-slate-600"><span>{p.doctor}</span><span className="font-semibold">{p.resident}</span></div>
                   </div>
                   <div className="flex flex-col items-end justify-between h-full gap-2">
-                      <button onClick={(e) => toggleStatus(e, p)} className="">{p.status === 'done' ? <CheckSquare size={30} className={p.type === 'SND' ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-blue-400"}/> : <Square size={30} className={p.type === 'SND' ? "text-orange-500" : "text-red-500"}/>}</button>
+                      <button onClick={(e) => toggleStatus(e, p)} className="">{p.status === 'done' ? <CheckSquare size={30} className={p.type === 'SND' ? "text-green-500 dark:text-green-400" : "text-blue-500 dark:text-blue-400"}/> : <Square size={30} className={p.type === 'SND' ? "text-orange-500" : "text-red-500"}/>}</button>
                       <div className="flex items-center gap-2 mt-2"><span className="text-[10px] font-bold opacity-60 text-slate-800 dark:text-slate-200">{calculateLOS(p.admissionDate)}d</span><button onClick={(e) => dischargePatient(e, p)} className="bg-black/10 dark:bg-white/10 p-1 rounded hover:bg-red-100 hover:text-red-500 dark:text-slate-300"><LogOut size={14}/></button></div>
                   </div>
                </div>
