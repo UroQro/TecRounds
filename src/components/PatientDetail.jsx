@@ -168,7 +168,6 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
                   </select>
               </div>
               
-              {/* NOTE FORMS WITH VISIBLE INPUTS */}
               {noteType === 'visita' && (
                   <div className="space-y-2">
                       <textarea className={inputClass + " h-24"} placeholder="Subjetivo" value={visitForm.subj} onChange={e=>setVisitForm({...visitForm, subj:e.target.value})}/>
@@ -236,14 +235,14 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
                                <p>TA: {note.content.ta} mmHg</p><p>FC: {note.content.fc} lpm</p><p>FR: {note.content.fr} rpm</p><p>Temp: {note.content.temp}°C</p><p>SatO2: {note.content.sat}%</p>
                            </div>
                        ) : note.type === 'somatometria' ? (
-                           <div className="text-sm text-gray-800 flex justify-between items-center"><span className="font-bold">⚖️ Peso: {note.content.weight} kg</span><span>Talla: {note.content.height} m</span><span className="bg-blue-100 px-2 rounded font-bold text-blue-800">IMC: {note.content.bmi}</span></div>
+                           <div className="text-sm text-gray-800 flex justify-between items-center"><span className="font-bold">⚖️ Peso: {note.content.weight} kg</span><span>Talla: {note.content.height} m</span><span className="bg-blue-100 dark:bg-blue-900/50 px-2 rounded font-bold text-blue-800 dark:text-blue-200">IMC: {note.content.bmi}</span></div>
                        ) : note.type === 'sonda' ? (
-                           <div className="text-sm text-gray-800"><p className="font-bold text-blue-900">{note.content.type} {note.content.fr} Fr</p><p className="text-xs text-gray-500">Colocada: {new Date(note.content.date).toLocaleDateString()}</p><p className="text-xs font-bold text-red-500 bg-red-50 p-1 inline-block rounded mt-1">Días de permanencia: {calculateDaysSince(note.content.date)} días</p></div>
+                           <div className="text-sm text-gray-800 dark:text-gray-200"><p className="font-bold text-blue-900 dark:text-blue-300">{note.content.type} {note.content.fr} Fr</p><p className="text-xs text-gray-500 dark:text-gray-400">Colocada: {new Date(note.content.date).toLocaleDateString()}</p><p className="text-xs font-bold text-red-500 bg-red-50 dark:bg-red-900/30 p-1 inline-block rounded mt-1">Días de permanencia: {calculateDaysSince(note.content.date)} días</p></div>
                        ) : note.type === 'cultivos' ? (
-                           <div className="text-sm text-gray-800"><p className={`font-bold ${note.content.result==='Positivo'?'text-red-600':'text-green-600'}`}>CULTIVO {note.content.result.toUpperCase()}</p>{note.content.result === 'Positivo' && <><p>🦠 {note.content.germ}</p><p className="text-xs bg-slate-100 p-1 mt-1 rounded">Sensible: {note.content.sens}</p></>}</div>
+                           <div className="text-sm text-gray-800 dark:text-gray-200"><p className={`font-bold ${note.content.result==='Positivo'?'text-red-600':'text-green-600'}`}>CULTIVO {note.content.result.toUpperCase()}</p>{note.content.result === 'Positivo' && <><p>🦠 {note.content.germ}</p><p className="text-xs bg-slate-100 dark:bg-slate-700 p-1 mt-1 rounded">Sensible: {note.content.sens}</p></>}</div>
                        ) : note.type === 'antibiotico' ? (
-                           <div className="text-sm text-gray-800"><p className="font-bold text-purple-900">💊 {note.content.drug}</p><p className="text-xs text-gray-500">Inicio: {new Date(note.content.startDate).toLocaleDateString()}</p><p className="text-xs font-bold text-purple-600 bg-purple-50 p-1 inline-block rounded mt-1">Día {calculateTreatmentDay(note.content.startDate)} de tratamiento</p></div>
-                       ) : (<div className="text-sm text-gray-800 break-words">{note.type === 'imagen' ? <a href={note.content.text} target="_blank" className="text-blue-600 underline flex gap-1 items-center"><LinkIcon size={14}/> Ver Imagen</a> : note.content.text}</div>)}
+                           <div className="text-sm text-gray-800 dark:text-gray-200"><p className="font-bold text-purple-900 dark:text-purple-300">💊 {note.content.drug}</p><p className="text-xs text-gray-500 dark:text-gray-400">Inicio: {new Date(note.content.startDate).toLocaleDateString()}</p><p className="text-xs font-bold text-purple-600 bg-purple-50 dark:bg-purple-900/30 p-1 inline-block rounded mt-1">Día {calculateTreatmentDay(note.content.startDate)} de tratamiento</p></div>
+                       ) : (<div className="text-sm text-gray-800 dark:text-gray-200 break-words">{note.type === 'imagen' ? <a href={note.content.text} target="_blank" className="text-blue-600 underline flex gap-1 items-center"><LinkIcon size={14}/> Ver Imagen</a> : note.content.text}</div>)}
                   </div>
               ))}
           </div>

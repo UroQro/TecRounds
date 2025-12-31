@@ -42,14 +42,11 @@ export const getLocalISODate = () => {
     return (new Date(d - offset)).toISOString().slice(0, 10);
 };
 
-// CLEAN EXPORT FUNCTION
 export const downloadCSV = (data, headers, filename) => {
-  // Función para normalizar texto (quita acentos y ñ)
   const clean = (str) => {
       if (typeof str !== 'string') return str;
       return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   };
-
   const csvContent = "data:text/csv;charset=utf-8," 
     + [
         headers.map(clean).join(","), 
