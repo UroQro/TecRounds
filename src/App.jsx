@@ -14,7 +14,6 @@ export default function App() {
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
 
-  // AUTO THEME: Day (8-20) Light, Night (20-8) Dark
   useEffect(() => {
       const updateTheme = () => {
           const hour = new Date().getHours();
@@ -81,7 +80,9 @@ export default function App() {
         {view === 'or' && <Surgery user={user} />}
         {view === 'discharges' && <Discharges />}
       </main>
-      <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8">© 2026 Rosenzweig/Gemini</footer>
+      <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8">
+        © 2026 Rosenzweig/Gemini <span className="opacity-50 ml-1">v48.0</span>
+      </footer>
     </div>
   );
 }

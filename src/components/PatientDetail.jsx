@@ -89,7 +89,9 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
 
   const copyMSJ = (data) => {
       const f = data;
-      let text = `*${patient.bed}* - *${patient.name}*`;
+      let text = `*${patient.bed}*`;
+      if(patient.hospital) text += ` (${patient.hospital})`;
+      text += ` - *${patient.name}*`;
 
       if (f.subj) text += `\n*S:* ${f.subj}`;
       const sv = [];
@@ -132,7 +134,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
           <div className="flex-1">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-none">{patient.name}</h2>
               <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex gap-2 items-center">
-                  <span>{patient.bed} • {calculateAge(patient.dob)}a</span>
+                  <span>{patient.bed} {patient.hospital && `(${patient.hospital})`} • {calculateAge(patient.dob)}a</span>
                   {bmi && <span className="bg-white dark:bg-slate-700 px-1 rounded font-bold text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-slate-600">IMC: {bmi}</span>}
               </div>
           </div>

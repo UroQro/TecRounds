@@ -13,4 +13,10 @@ export const RESIDENTS = [
   "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"
 ].sort();
 
-export const LOCATIONS = ["HZH", "Angeles", "Clinic", "Oca", "CEM", "Cirugia", "DH", "DHE", "San Felipe", "San Vicente", "San Camilo", "Conchita", "Christus", "Instituto", "OnCare", "Otro"];
+// Se agregan los hospitales solicitados
+export const LOCATIONS = [
+  "HZH", "Angeles", "Clinic", "Oca", "CEM", "Cirugia", "DH", "DHE", 
+  "San Felipe", "San Vicente", "San Camilo", "Conchita", "Christus", "Instituto", 
+  "OnCare", "Swiss", "Nogalar", "Ginequito", "Nova", "SierraM", "Obispado", 
+  "Vidriera", "SanJero", "Fertilita", "Otro"
+];

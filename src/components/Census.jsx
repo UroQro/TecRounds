@@ -36,7 +36,7 @@ export default function Census({ user }) {
   };
 
   const exportDOP = () => { const data = patients.filter(p => p.doctor === "Dr. Olvera").map(p => [p.bed, p.name, p.diagnosis, calculateLOS(p.admissionDate)]); downloadCSV(data, ["Cama", "Nombre", "Dx", "Dias"], "Censo_Dr_Olvera.csv"); };
-  const exportGeneral = () => { const data = patients.map(p => [p.bed, p.type, p.name, p.admissionDate, calculateLOS(p.admissionDate), p.dob, calculateAge(p.dob), p.diagnosis, p.doctor]); downloadCSV(data, ["Cuarto", "IC/HO", "Nombre", "Ingreso", "Dias", "Nacimiento", "Edad", "Dx", "Tratante"], "Censo_General.csv"); };
+  const exportGeneral = () => { const data = patients.map(p => [p.bed, p.type, p.name, p.admissionDate, calculateLOS(p.admissionDate), p.dob, calculateAge(p.dob), p.diagnosis, p.doctor, p.hospital || '']); downloadCSV(data, ["Cuarto", "IC/HO", "Nombre", "Ingreso", "Dias", "Nacimiento", "Edad", "Dx", "Tratante", "Hospital"], "Censo_General.csv"); };
 
   if (selectedPatient) return <PatientDetail patient={selectedPatient} onClose={() => setSelectedPatient(null)} user={user} />;
 
@@ -60,7 +60,11 @@ export default function Census({ user }) {
             <div key={p.id} onClick={() => setSelectedPatient(p)} className={`p-3 rounded-lg cursor-pointer active:scale-95 transition ${getCardColor(p)}`}>
                <div className="flex justify-between items-start">
                   <div className="flex-1 pr-2">
-                     <div className="flex items-center gap-2 mb-1"><span className="text-xl font-black text-slate-800 dark:text-slate-200">{p.bed}</span><span className={`text-[10px] font-bold px-2 py-0.5 rounded border border-black/10 dark:border-white/10 uppercase tracking-wider ${p.type==='NOVER'?'bg-gray-100 dark:bg-slate-700 text-gray-500':'bg-white dark:bg-slate-800 dark:text-white'}`}>{p.type}</span></div>
+                     <div className="flex items-center gap-2 mb-1">
+                        <span className="bg-black text-white px-2 py-1 rounded font-black text-lg shadow-sm border border-slate-700">{p.bed}</span>
+                        {p.hospital && <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-900 px-1 rounded">{p.hospital}</span>}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border border-black/10 dark:border-white/10 uppercase tracking-wider ${p.type==='NOVER'?'bg-gray-100 dark:bg-slate-700 text-gray-500':'bg-white dark:bg-slate-800 dark:text-white'}`}>{p.type}</span>
+                     </div>
                      <h3 className="font-extrabold text-lg text-blue-700 dark:text-blue-300 leading-tight mb-1">{p.name}</h3>
                      <p className="text-xs opacity-75 mb-1 dark:text-slate-300 text-gray-700">{calculateAge(p.dob)} años • {p.diagnosis}</p>
                      <div className="text-xs opacity-75 flex justify-between bg-black/5 dark:bg-white/5 p-1 rounded dark:text-slate-400 text-slate-600"><span>{p.doctor}</span><span className="font-semibold">{p.resident}</span></div>

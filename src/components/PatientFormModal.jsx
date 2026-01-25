@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { addDoc, updateDoc, collection, doc } from 'firebase/firestore';
-import { DOCTORS, RESIDENTS } from '../constants';
+import { DOCTORS, RESIDENTS, LOCATIONS } from '../constants';
 import { getLocalISODate } from '../utils';
 
 export default function PatientFormModal({ onClose, mode, initialData }) {
   const [form, setForm] = useState(initialData || { 
-      name: '', bed: '', type: 'HO', doctor: '', resident: '', admissionDate: getLocalISODate(), dob: '', diagnosis: '',
+      name: '', bed: '', hospital: '', type: 'HO', doctor: '', resident: '', admissionDate: getLocalISODate(), dob: '', diagnosis: '',
       antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
   });
   const [isOtherDoc, setIsOtherDoc] = useState(false);
@@ -36,8 +36,11 @@ export default function PatientFormModal({ onClose, mode, initialData }) {
               <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">{mode==='create'?'Nuevo Paciente':'Editar Paciente'}</h2>
               <form onSubmit={handleSubmit} className="space-y-3">
                   <div className="flex gap-2">
+                      <select className={`w-1/3 text-xs ${inputClass}`} value={form.hospital || 'HZH'} onChange={e=>setForm({...form, hospital:e.target.value})}>
+                          <option value="">Hospital...</option>{LOCATIONS.map(l=><option key={l} value={l}>{l}</option>)}
+                      </select>
                       <input required placeholder="Cama" className={`w-1/3 ${inputClass}`} value={form.bed} onChange={e=>setForm({...form, bed:e.target.value})} />
-                      <select className={`w-1/3 ${inputClass}`} value={form.type} onChange={e=>setForm({...form, type:e.target.value})}><option>HO</option><option>IC</option><option>SND</option><option>NOVER</option></select>
+                      <select className={`w-1/3 text-xs ${inputClass}`} value={form.type} onChange={e=>setForm({...form, type:e.target.value})}><option>HO</option><option>IC</option><option>SND</option><option>NOVER</option></select>
                   </div>
                   <input required placeholder="Nombre Completo" className={inputClass} value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
                   
