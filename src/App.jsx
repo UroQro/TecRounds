@@ -81,7 +81,7 @@ export default function App() {
         {view === 'discharges' && <Discharges />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8">
-        © 2026 Rosenzweig/Gemini <span className="opacity-50 ml-1">v48.0</span>
+        © 2026 Rosenzweig/Gemini <span className="opacity-50 ml-1">v49.0</span>
       </footer>
     </div>
   );

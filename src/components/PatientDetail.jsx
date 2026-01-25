@@ -18,6 +18,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
   const [abxForm, setAbxForm] = useState({ drug: '', startDate: getLocalISODate() });
   const [somatoForm, setSomatoForm] = useState({ weight: '', height: '' });
   const [vitalForm, setVitalForm] = useState({ ta: '', fc: '', fr: '', temp: '', sat: '' });
+  const [egoForm, setEgoForm] = useState({ isPathological: false, aspect: '', ph: '', color: '', blood: '', proteins: '', glucose: '', rbc: '', wbc: '', yeast: '', nitrites: '', cultureSent: false });
   const [simpleNote, setSimpleNote] = useState('');
   const [newTask, setNewTask] = useState('');
   const [labForm, setLabForm] = useState({ hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
@@ -32,6 +33,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
       else if (note.type === 'somatometria') setSomatoForm(note.content);
       else if (note.type === 'vitales') setVitalForm(note.content);
       else if (note.type === 'laboratorios') setLabForm(note.content);
+      else if (note.type === 'ego') setEgoForm(note.content);
       else setSimpleNote(note.content.text);
       window.scrollTo({ top: 300, behavior: 'smooth' });
   };
@@ -39,6 +41,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
   const cancelEditing = () => {
       setEditingNote(null);
       setVisitForm({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
+      setEgoForm({ isPathological: false, aspect: '', ph: '', color: '', blood: '', proteins: '', glucose: '', rbc: '', wbc: '', yeast: '', nitrites: '', cultureSent: false });
       setSimpleNote('');
   };
 
@@ -69,6 +72,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
       else if (noteType === 'cultivos') { content = { ...cultureForm }; }
       else if (noteType === 'antibiotico') { if(!abxForm.drug) return alert("Nombre?"); content = { ...abxForm }; }
       else if (noteType === 'somatometria') { if(!somatoForm.weight || !somatoForm.height) return alert("Faltan datos"); const calculatedBMI = calculateBMI(somatoForm.weight, somatoForm.height); content = { ...somatoForm, bmi: calculatedBMI }; }
+      else if (noteType === 'ego') { content = { ...egoForm }; }
       else { 
           if(!simpleNote) return alert("Nota vacía"); 
           content = { text: simpleNote }; 
@@ -166,7 +170,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
               <div className="flex justify-between mb-2 items-center">
                   <label className="text-xs font-bold text-slate-400 uppercase">{editingNote ? 'Editando Nota' : 'Nueva Entrada'}</label>
                   <select className="text-xs border border-gray-200 dark:border-slate-600 rounded p-1 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white" value={noteType} onChange={e=>setNoteType(e.target.value)} disabled={!!editingNote}>
-                      <option value="visita">Visita Diaria</option><option value="laboratorios">Laboratorios</option><option value="vitales">Signos Vitales</option><option value="somatometria">Peso y Talla</option><option value="cultivos">Cultivos</option><option value="antibiotico">Antibiótico</option><option value="procedimiento">Procedimiento</option><option value="imagen">Imagen (URL)</option><option value="sonda">Sonda/Drenaje</option><option value="texto">Nota Libre</option>
+                      <option value="visita">Visita Diaria</option><option value="laboratorios">Laboratorios</option><option value="ego">EGO</option><option value="vitales">Signos Vitales</option><option value="somatometria">Peso y Talla</option><option value="cultivos">Cultivos</option><option value="antibiotico">Antibiótico</option><option value="procedimiento">Procedimiento</option><option value="imagen">Imagen (URL)</option><option value="sonda">Sonda/Drenaje</option><option value="texto">Nota Libre</option>
                   </select>
               </div>
               
@@ -181,6 +185,32 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
               )}
               {noteType === 'laboratorios' && (
                   <div className="space-y-2"><div className="p-2 border rounded bg-slate-50 dark:bg-slate-700"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Laboratorios</p><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Hb" className={inputClass} value={labForm.hb} onChange={e=>setLabForm({...labForm, hb:e.target.value})}/><input placeholder="Leu" className={inputClass} value={labForm.leu} onChange={e=>setLabForm({...labForm, leu:e.target.value})}/><input placeholder="Plq" className={inputClass} value={labForm.plq} onChange={e=>setLabForm({...labForm, plq:e.target.value})}/></div><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Glu" className={inputClass} value={labForm.glu} onChange={e=>setLabForm({...labForm, glu:e.target.value})}/><input placeholder="Cr" className={inputClass} value={labForm.cr} onChange={e=>setLabForm({...labForm, cr:e.target.value})}/><input placeholder="BUN" className={inputClass} value={labForm.bun} onChange={e=>setLabForm({...labForm, bun:e.target.value})}/></div><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Na" className={inputClass} value={labForm.na} onChange={e=>setLabForm({...labForm, na:e.target.value})}/><input placeholder="K" className={inputClass} value={labForm.k} onChange={e=>setLabForm({...labForm, k:e.target.value})}/><input placeholder="Cl" className={inputClass} value={labForm.cl} onChange={e=>setLabForm({...labForm, cl:e.target.value})}/></div></div></div>
+              )}
+              {noteType === 'ego' && (
+                  <div className="space-y-3">
+                     <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-700 rounded">
+                        <button onClick={()=>setEgoForm({...egoForm, isPathological: false})} className={`flex-1 py-1 text-xs font-bold rounded transition ${!egoForm.isPathological ? 'bg-green-500 text-white shadow' : 'text-slate-500'}`}>NO PATOLÓGICO</button>
+                        <button onClick={()=>setEgoForm({...egoForm, isPathological: true})} className={`flex-1 py-1 text-xs font-bold rounded transition ${egoForm.isPathological ? 'bg-red-500 text-white shadow' : 'text-slate-500'}`}>PATOLÓGICO</button>
+                     </div>
+                     {egoForm.isPathological && (
+                        <div className="grid grid-cols-2 gap-2">
+                            <input placeholder="Color" className={inputClass} value={egoForm.color} onChange={e=>setEgoForm({...egoForm, color:e.target.value})} />
+                            <input placeholder="Aspecto" className={inputClass} value={egoForm.aspect} onChange={e=>setEgoForm({...egoForm, aspect:e.target.value})} />
+                            <input placeholder="pH" className={inputClass} value={egoForm.ph} onChange={e=>setEgoForm({...egoForm, ph:e.target.value})} />
+                            <input placeholder="Sangre" className={inputClass} value={egoForm.blood} onChange={e=>setEgoForm({...egoForm, blood:e.target.value})} />
+                            <input placeholder="Proteínas" className={inputClass} value={egoForm.proteins} onChange={e=>setEgoForm({...egoForm, proteins:e.target.value})} />
+                            <input placeholder="Glucosa" className={inputClass} value={egoForm.glucose} onChange={e=>setEgoForm({...egoForm, glucose:e.target.value})} />
+                            <input placeholder="Eritrocitos x Campo" className={inputClass} value={egoForm.rbc} onChange={e=>setEgoForm({...egoForm, rbc:e.target.value})} />
+                            <input placeholder="Leucocitos x Campo" className={inputClass} value={egoForm.wbc} onChange={e=>setEgoForm({...egoForm, wbc:e.target.value})} />
+                            <input placeholder="Levaduras" className={inputClass} value={egoForm.yeast} onChange={e=>setEgoForm({...egoForm, yeast:e.target.value})} />
+                            <input placeholder="Nitritos" className={inputClass} value={egoForm.nitrites} onChange={e=>setEgoForm({...egoForm, nitrites:e.target.value})} />
+                        </div>
+                     )}
+                     <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300 p-2 border rounded border-slate-200 dark:border-slate-700">
+                        <input type="checkbox" checked={egoForm.cultureSent} onChange={e=>setEgoForm({...egoForm, cultureSent:e.target.checked})} className="w-4 h-4" />
+                        Se envió urocultivo
+                     </label>
+                  </div>
               )}
               {noteType === 'vitales' && (
                    <div className="space-y-3">
@@ -229,6 +259,29 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
                                {(note.content.hb || note.content.cr) && <LabGrid c={note.content}/>}
                                <p className="font-medium text-blue-900 dark:text-blue-300 mt-1">P: {note.content.plan}</p>
                                <button onClick={() => copyMSJ(note.content)} className="mt-2 text-xs bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded border border-green-200 dark:border-green-800 flex items-center gap-1 font-bold w-full justify-center"><Copy size={12}/> Copiar MSJ</button>
+                           </div>
+                       ) : note.type === 'ego' ? (
+                           <div className={`text-sm ${note.content.isPathological ? 'border-l-4 border-red-500 pl-2' : 'border-l-4 border-green-500 pl-2'}`}>
+                               <div className="flex justify-between items-center mb-1">
+                                   <span className={`font-bold ${note.content.isPathological ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                                       {note.content.isPathological ? 'EGO PATOLÓGICO' : 'EGO NO PATOLÓGICO'}
+                                   </span>
+                                   {note.content.cultureSent && <span className="text-[10px] bg-blue-100 text-blue-800 px-2 rounded-full font-bold">CULTIVO ENVIADO</span>}
+                               </div>
+                               {note.content.isPathological && (
+                                   <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-gray-700 dark:text-gray-300 mt-2 bg-slate-50 dark:bg-slate-700/50 p-2 rounded">
+                                       {note.content.color && <p>Color: {note.content.color}</p>}
+                                       {note.content.aspect && <p>Asp: {note.content.aspect}</p>}
+                                       {note.content.ph && <p>pH: {note.content.ph}</p>}
+                                       {note.content.blood && <p>Sng: {note.content.blood}</p>}
+                                       {note.content.proteins && <p>Prot: {note.content.proteins}</p>}
+                                       {note.content.glucose && <p>Glu: {note.content.glucose}</p>}
+                                       {note.content.rbc && <p>Eri: {note.content.rbc}</p>}
+                                       {note.content.wbc && <p>Leu: {note.content.wbc}</p>}
+                                       {note.content.yeast && <p>Lev: {note.content.yeast}</p>}
+                                       {note.content.nitrites && <p>Nit: {note.content.nitrites}</p>}
+                                   </div>
+                               )}
                            </div>
                        ) : note.type === 'laboratorios' ? (
                            <div className="text-sm space-y-1"><LabGrid c={note.content}/></div>

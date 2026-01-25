@@ -1,7 +1,7 @@
 {
-  "name": "rounds-tecsalud-v48",
+  "name": "rounds-tecsalud-v49",
   "private": true,
-  "version": "48.0.0",
+  "version": "49.0.0",
   "type": "module",
   "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview" },
   "dependencies": {
