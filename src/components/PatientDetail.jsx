@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate } from '../utils';
-import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive } from 'lucide-react';
 import PatientFormModal from './PatientFormModal';
 
 export default function PatientDetail({ patient: initialPatient, onClose, user }) {
@@ -18,7 +18,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
   const [abxForm, setAbxForm] = useState({ drug: '', startDate: getLocalISODate() });
   const [somatoForm, setSomatoForm] = useState({ weight: '', height: '' });
   const [vitalForm, setVitalForm] = useState({ ta: '', fc: '', fr: '', temp: '', sat: '' });
-  const [egoForm, setEgoForm] = useState({ isPathological: false, aspect: '', ph: '', color: '', blood: '', proteins: '', glucose: '', rbc: '', wbc: '', yeast: '', nitrites: '', cultureSent: false });
+  const [egoForm, setEgoForm] = useState({ isPathological: false, aspect: '', ph: '', density: '', color: '', blood: '', proteins: '', glucose: '', rbc: '', wbc: '', yeast: '', nitrites: '', cultureSent: false });
   const [simpleNote, setSimpleNote] = useState('');
   const [newTask, setNewTask] = useState('');
   const [labForm, setLabForm] = useState({ hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
@@ -41,7 +41,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
   const cancelEditing = () => {
       setEditingNote(null);
       setVisitForm({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
-      setEgoForm({ isPathological: false, aspect: '', ph: '', color: '', blood: '', proteins: '', glucose: '', rbc: '', wbc: '', yeast: '', nitrites: '', cultureSent: false });
+      setEgoForm({ isPathological: false, aspect: '', ph: '', density: '', color: '', blood: '', proteins: '', glucose: '', rbc: '', wbc: '', yeast: '', nitrites: '', cultureSent: false });
       setSimpleNote('');
   };
 
@@ -119,6 +119,16 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
   const addTask = async () => { if(!newTask) return; const newList = [...(patient.checklist || []), { task: newTask, done: false }]; await updateDoc(doc(db, "patients", patient.id), { checklist: newList, hasPending: true }); setNewTask(''); };
   const toggleTask = async (idx) => { const newList = [...(patient.checklist || [])]; newList[idx].done = !newList[idx].done; const hasPending = newList.some(x => !x.done); await updateDoc(doc(db, "patients", patient.id), { checklist: newList, hasPending }); };
   const deleteNote = async (noteId) => { if(!confirm("¿Eliminar?")) return; const newNotes = patient.notes.filter(n => n.id !== noteId); await updateDoc(doc(db, "patients", patient.id), { notes: newNotes }); };
+  
+  const archiveTasks = async () => {
+    const completed = patient.checklist?.filter(t => t.done) || [];
+    if (completed.length === 0) return;
+    if(!confirm(`¿Archivar ${completed.length} pendientes completados como nota?`)) return;
+    const active = patient.checklist.filter(t => !t.done);
+    const text = "✅ PENDIENTES RESUELTOS:\n" + completed.map(t => "• " + t.task).join("\n");
+    const newNote = { id: Date.now().toString(), type: 'texto', author: getUserName(), timestamp: new Date().toISOString(), content: { text } };
+    await updateDoc(doc(db, "patients", patient.id), { checklist: active, notes: arrayUnion(newNote), hasPending: active.length > 0 });
+  };
 
   const LabGrid = ({ c }) => (
       <div className="grid grid-cols-4 gap-1 text-[10px] bg-slate-50 dark:bg-slate-700 p-2 rounded border dark:border-slate-600 mt-1 font-mono text-center text-slate-800 dark:text-slate-200">
@@ -159,7 +169,12 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
           </div>
 
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded p-3 shadow-md dark:shadow-sm text-slate-900 dark:text-slate-200">
-             <h4 className="text-xs font-bold text-yellow-800 dark:text-yellow-500 uppercase mb-2">Pendientes</h4>
+             <div className="flex justify-between items-center mb-2">
+                 <h4 className="text-xs font-bold text-yellow-800 dark:text-yellow-500 uppercase">Pendientes</h4>
+                 {patient.checklist?.some(t => t.done) && (
+                     <button onClick={archiveTasks} className="text-[10px] flex items-center gap-1 bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded font-bold shadow-sm hover:opacity-80 transition"><Archive size={12}/> Archivar</button>
+                 )}
+             </div>
              {patient.checklist?.map((t, i) => (
                  <div key={i} className="flex items-center gap-2 mb-1"><input type="checkbox" checked={t.done} onChange={()=>toggleTask(i)} className="w-5 h-5 accent-yellow-600"/><span className={`text-sm ${t.done?'line-through text-gray-400 dark:text-gray-600':'text-gray-900 dark:text-gray-300'}`}>{t.task}</span></div>
              ))}
@@ -193,15 +208,16 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
                         <button onClick={()=>setEgoForm({...egoForm, isPathological: true})} className={`flex-1 py-1 text-xs font-bold rounded transition ${egoForm.isPathological ? 'bg-red-500 text-white shadow' : 'text-slate-500'}`}>PATOLÓGICO</button>
                      </div>
                      {egoForm.isPathological && (
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                             <input placeholder="Color" className={inputClass} value={egoForm.color} onChange={e=>setEgoForm({...egoForm, color:e.target.value})} />
                             <input placeholder="Aspecto" className={inputClass} value={egoForm.aspect} onChange={e=>setEgoForm({...egoForm, aspect:e.target.value})} />
                             <input placeholder="pH" className={inputClass} value={egoForm.ph} onChange={e=>setEgoForm({...egoForm, ph:e.target.value})} />
+                            <input placeholder="Densidad" className={inputClass} value={egoForm.density} onChange={e=>setEgoForm({...egoForm, density:e.target.value})} />
                             <input placeholder="Sangre" className={inputClass} value={egoForm.blood} onChange={e=>setEgoForm({...egoForm, blood:e.target.value})} />
                             <input placeholder="Proteínas" className={inputClass} value={egoForm.proteins} onChange={e=>setEgoForm({...egoForm, proteins:e.target.value})} />
                             <input placeholder="Glucosa" className={inputClass} value={egoForm.glucose} onChange={e=>setEgoForm({...egoForm, glucose:e.target.value})} />
-                            <input placeholder="Eritrocitos x Campo" className={inputClass} value={egoForm.rbc} onChange={e=>setEgoForm({...egoForm, rbc:e.target.value})} />
-                            <input placeholder="Leucocitos x Campo" className={inputClass} value={egoForm.wbc} onChange={e=>setEgoForm({...egoForm, wbc:e.target.value})} />
+                            <input placeholder="Eritrocitos" className={inputClass} value={egoForm.rbc} onChange={e=>setEgoForm({...egoForm, rbc:e.target.value})} />
+                            <input placeholder="Leucocitos" className={inputClass} value={egoForm.wbc} onChange={e=>setEgoForm({...egoForm, wbc:e.target.value})} />
                             <input placeholder="Levaduras" className={inputClass} value={egoForm.yeast} onChange={e=>setEgoForm({...egoForm, yeast:e.target.value})} />
                             <input placeholder="Nitritos" className={inputClass} value={egoForm.nitrites} onChange={e=>setEgoForm({...egoForm, nitrites:e.target.value})} />
                         </div>
@@ -269,10 +285,11 @@ export default function PatientDetail({ patient: initialPatient, onClose, user }
                                    {note.content.cultureSent && <span className="text-[10px] bg-blue-100 text-blue-800 px-2 rounded-full font-bold">CULTIVO ENVIADO</span>}
                                </div>
                                {note.content.isPathological && (
-                                   <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-gray-700 dark:text-gray-300 mt-2 bg-slate-50 dark:bg-slate-700/50 p-2 rounded">
+                                   <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-xs text-gray-700 dark:text-gray-300 mt-2 bg-slate-50 dark:bg-slate-700/50 p-2 rounded">
                                        {note.content.color && <p>Color: {note.content.color}</p>}
                                        {note.content.aspect && <p>Asp: {note.content.aspect}</p>}
                                        {note.content.ph && <p>pH: {note.content.ph}</p>}
+                                       {note.content.density && <p>Den: {note.content.density}</p>}
                                        {note.content.blood && <p>Sng: {note.content.blood}</p>}
                                        {note.content.proteins && <p>Prot: {note.content.proteins}</p>}
                                        {note.content.glucose && <p>Glu: {note.content.glucose}</p>}
