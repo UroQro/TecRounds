@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { addDoc, updateDoc, collection, doc } from 'firebase/firestore';
-import { DOCTORS, RESIDENTS, LOCATIONS } from '../constants';
+import { DOCTORS, LOCATIONS } from '../constants';
 import { getLocalISODate } from '../utils';
 
-export default function PatientFormModal({ onClose, mode, initialData }) {
+export default function PatientFormModal({ onClose, mode, initialData, dynamicResidents }) {
   const [form, setForm] = useState(initialData || { 
       name: '', bed: '', hospital: '', type: 'HO', doctor: '', resident: '', admissionDate: getLocalISODate(), dob: '', diagnosis: '',
       antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
@@ -12,12 +12,19 @@ export default function PatientFormModal({ onClose, mode, initialData }) {
   const [isOtherDoc, setIsOtherDoc] = useState(false);
   const [isOtherRes, setIsOtherRes] = useState(false);
 
+  // Lógica para mantener compatibilidad con residentes antiguos eliminados
+  const resOptions = [...(dynamicResidents || [])];
+  if (mode === 'edit' && form.resident && !resOptions.includes(form.resident) && form.resident !== 'Otro') {
+      resOptions.push(form.resident);
+  }
+  resOptions.sort();
+
   useEffect(() => {
      if(mode === 'edit' && initialData) {
          if(!DOCTORS.includes(initialData.doctor) && initialData.doctor) setIsOtherDoc(true);
-         if(!RESIDENTS.includes(initialData.resident) && initialData.resident) setIsOtherRes(true);
+         if(!resOptions.includes(initialData.resident) && initialData.resident) setIsOtherRes(true);
      }
-  }, [mode, initialData]);
+  }, [mode, initialData, resOptions]);
 
   const handleSubmit = async (e) => {
       e.preventDefault();
@@ -65,7 +72,7 @@ export default function PatientFormModal({ onClose, mode, initialData }) {
                   <div className="space-y-1">
                       <select required={!isOtherRes} className={`text-xs ${inputClass}`} value={isOtherRes ? 'Otro' : form.resident} 
                               onChange={e=>{ if(e.target.value==='Otro') { setIsOtherRes(true); setForm({...form, resident: ''}); } else { setIsOtherRes(false); setForm({...form, resident:e.target.value}); }}}>
-                          <option value="">Seleccionar Residente...</option>{RESIDENTS.map(r=><option key={r} value={r}>{r}</option>)}<option value="Otro">Otro / Agregar Nuevo</option>
+                          <option value="">Seleccionar Residente...</option>{resOptions.map(r=><option key={r} value={r}>{r}</option>)}<option value="Otro">Otro / Agregar Nuevo</option>
                       </select>
                       {isOtherRes && <input placeholder="Escribe nombre del Residente" className={`text-xs bg-blue-50 ${inputClass}`} value={form.resident} onChange={e=>setForm({...form, resident:e.target.value})} required />}
                   </div>

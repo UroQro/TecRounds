@@ -8,7 +8,8 @@ export const DOCTORS = [
   "Dra. Hernandez", "Dra. Martinez", "Dra. Morin", "Dra. Turner"
 ].sort();
 
-export const RESIDENTS = [
+// Valor por defecto en caso de que Firestore esté vacío
+export const DEFAULT_RESIDENTS = [
   "Chris", "Efrain", "Alexis", "Andres", "Roxana", "Diego", "Ivan", "Mariel", 
   "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"
 ].sort();

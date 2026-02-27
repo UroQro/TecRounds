@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { doc, getDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import Login from './components/Login';
 import Census from './components/Census';
 import Surgery from './components/Surgery';
 import Discharges from './components/Discharges';
-import { LogOut, ClipboardList, Archive, Scissors } from 'lucide-react';
+import AdminPanel from './components/AdminPanel';
+import { LogOut, ClipboardList, Archive, Scissors, Lock } from 'lucide-react';
 import { getLocalISODate } from './utils';
+import { DEFAULT_RESIDENTS } from './constants';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
+  const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
 
+  // Theme auto-update
   useEffect(() => {
       const updateTheme = () => {
           const hour = new Date().getHours();
@@ -24,6 +28,18 @@ export default function App() {
       updateTheme(); 
       const interval = setInterval(updateTheme, 60000); 
       return () => clearInterval(interval);
+  }, []);
+
+  // Fetch Residents dynamically
+  useEffect(() => {
+      const unsub = onSnapshot(doc(db, 'metadata', 'settings'), (docSnap) => {
+          if (docSnap.exists() && docSnap.data().residents) {
+              setDynamicResidents(docSnap.data().residents.sort());
+          } else {
+              setDoc(doc(db, 'metadata', 'settings'), { residents: DEFAULT_RESIDENTS, bannedUsers: [] }, { merge: true });
+          }
+      });
+      return () => unsub();
   }, []);
 
   const checkDailyReset = async () => {
@@ -43,18 +59,36 @@ export default function App() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) { setView('census'); checkDailyReset(); } else { setView('login'); }
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+          // Check if user is banned
+          const snap = await getDoc(doc(db, 'metadata', 'settings'));
+          if (snap.exists() && snap.data().bannedUsers?.includes(currentUser.email)) {
+              alert("Acceso denegado. Este usuario ha sido dado de baja por el administrador.");
+              await signOut(auth);
+              setUser(null);
+              setView('login');
+              setLoading(false);
+              return;
+          }
+
+          setUser(currentUser);
+          if (view === 'login' || view === 'admin') setView('census'); 
+          checkDailyReset(); 
+      } else { 
+          setUser(null);
+          if(view !== 'admin') setView('login'); 
+      }
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [view]);
 
-  const handleLogout = () => signOut(auth);
+  const handleLogout = () => { signOut(auth); setView('login'); };
   const getUserName = () => user && user.email ? user.email.split('@')[0] : "";
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900 dark:text-white">Cargando...</div>;
+  if (view === 'admin') return <AdminPanel onClose={() => setView(user ? 'census' : 'login')} />;
   if (!user) return <Login />;
 
   return (
@@ -76,12 +110,13 @@ export default function App() {
         </div>
       </header>
       <main className="flex-1 p-2 max-w-5xl mx-auto w-full pb-safe">
-        {view === 'census' && <Census user={user} />}
-        {view === 'or' && <Surgery user={user} />}
+        {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} />}
+        {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} />}
         {view === 'discharges' && <Discharges />}
       </main>
-      <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8">
-        © 2026 Rosenzweig/Gemini <span className="opacity-50 ml-1">v51.0</span>
+      <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v52.0</span>
+        <button onClick={() => setView('admin')} className="opacity-10 hover:opacity-100 transition-opacity ml-2 p-1"><Lock size={12}/></button>
       </footer>
     </div>
   );
