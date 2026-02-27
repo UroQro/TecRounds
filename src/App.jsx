@@ -115,7 +115,7 @@ export default function App() {
         {view === 'discharges' && <Discharges />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v52.0</span>
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v53.0</span>
         <button onClick={() => setView('admin')} className="opacity-10 hover:opacity-100 transition-opacity ml-2 p-1"><Lock size={12}/></button>
       </footer>
     </div>

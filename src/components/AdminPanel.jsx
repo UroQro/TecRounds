@@ -13,7 +13,6 @@ export default function AdminPanel({ onClose }) {
     const [residents, setResidents] = useState([]);
     const [banned, setBanned] = useState([]);
     
-    // Inputs
     const [newRes, setNewRes] = useState('');
     const [newUser, setNewUser] = useState('');
     const [newPass, setNewPass] = useState('');
@@ -39,7 +38,6 @@ export default function AdminPanel({ onClose }) {
 
     useEffect(() => { if(authOk) fetchSettings(); }, [authOk]);
 
-    // --- Residentes ---
     const addResident = async () => {
         if(!newRes.trim()) return;
         const formatted = newRes.trim();
@@ -52,7 +50,6 @@ export default function AdminPanel({ onClose }) {
         fetchSettings(); showMsg("Residente eliminado");
     };
 
-    // --- Usuarios ---
     const FAKE_DOMAIN = "@rounds.app";
 
     const createUser = async (e) => {
