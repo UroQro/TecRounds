@@ -74,7 +74,7 @@ export default function AdminPanel({ onClose }) {
     };
 
     const resetToDefaults = async () => {
-        if(!confirm(`¿RESTABLECER ${activeTab.toUpperCase()}? Esto borrará tus cambios manuales en esta pestaña y cargará la lista base.`)) return;
+        if(!confirm(`¿RESTABLECER ${activeTab.toUpperCase()}? Esto borrará tus cambios manuales en esta pestaña y cargará la lista oficial.`)) return;
         let field = '';
         let defaultData = [];
         if(activeTab === 'residentes') { field = 'residents'; defaultData = DEFAULT_RESIDENTS; }
@@ -146,7 +146,7 @@ export default function AdminPanel({ onClose }) {
                     </form>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        {currentList.length === 0 && <p className="text-gray-400 py-4 col-span-3">Cargando datos (Asegúrate de estar conectado a internet)...</p>}
+                        {currentList.length === 0 && <p className="text-gray-400 py-4 col-span-3">Cargando datos...</p>}
                         {currentList.map(item => (
                             <div key={item} className="flex justify-between items-center bg-gray-50 dark:bg-slate-700 p-3 rounded-lg border dark:border-slate-600 shadow-sm">
                                 <span className="font-bold text-slate-800 dark:text-slate-100 truncate pr-2" title={item}>{item}</span>

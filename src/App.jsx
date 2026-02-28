@@ -15,8 +15,6 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
-  
-  // Nuevo estado para mostrar Admin Panel como Overlay flotante
   const [showAdmin, setShowAdmin] = useState(false);
 
   const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
@@ -89,7 +87,6 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-500 relative">
       
-      {/* OVERLAY DE ADMINISTRADOR (Garantiza permisos) */}
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
 
       <header className="bg-black text-white p-3 shadow-md sticky top-0 z-40 pt-safe">
@@ -110,12 +107,12 @@ export default function App() {
       </header>
       <main className="flex-1 p-2 max-w-5xl mx-auto w-full pb-safe">
         {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
-        {view === 'or' && <Surgery user={user} />}
+        {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
         {view === 'discharges' && <Discharges />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v60.0</span>
-        <button onClick={() => setShowAdmin(true)} className="opacity-10 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v62.0</span>
+        <button onClick={() => setShowAdmin(true)} className="opacity-20 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
       </footer>
     </div>
   );
