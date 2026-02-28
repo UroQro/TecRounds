@@ -14,7 +14,7 @@ export const DEFAULT_RESIDENTS = [
   "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
 ].sort();
 
-// Por seguridad para archivos legacy, se sigue exportando RESIDENTS
+// Export legacy para evitar caídas
 export const RESIDENTS = [
   "Andres", "Roxana", "Diego", "Ivan", "Mariel", "Carlos", "Kevin", "Felipe", 
   "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
