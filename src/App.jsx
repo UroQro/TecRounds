@@ -7,7 +7,7 @@ import Census from './components/Census';
 import Surgery from './components/Surgery';
 import Discharges from './components/Discharges';
 import AdminPanel from './components/AdminPanel';
-import { LogOut, ClipboardList, Archive, Scissors, Lock } from 'lucide-react';
+import { LogOut, ClipboardList, Archive, Scissors } from 'lucide-react';
 import { getLocalISODate } from './utils';
 import { DEFAULT_RESIDENTS } from './constants';
 
@@ -17,7 +17,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
 
-  // Theme auto-update
   useEffect(() => {
       const updateTheme = () => {
           const hour = new Date().getHours();
@@ -30,7 +29,6 @@ export default function App() {
       return () => clearInterval(interval);
   }, []);
 
-  // Fetch Residents dynamically
   useEffect(() => {
       const unsub = onSnapshot(doc(db, 'metadata', 'settings'), (docSnap) => {
           if (docSnap.exists() && docSnap.data().residents) {
@@ -61,7 +59,6 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-          // Check if user is banned
           const snap = await getDoc(doc(db, 'metadata', 'settings'));
           if (snap.exists() && snap.data().bannedUsers?.includes(currentUser.email)) {
               alert("Acceso denegado. Este usuario ha sido dado de baja por el administrador.");
@@ -71,25 +68,28 @@ export default function App() {
               setLoading(false);
               return;
           }
-
           setUser(currentUser);
-          if (view === 'login' || view === 'admin') setView('census'); 
+          setView('census'); // Si se loguea, fuerza ir al Censo
           checkDailyReset(); 
       } else { 
           setUser(null);
-          if(view !== 'admin') setView('login'); 
+          setView(prev => prev === 'admin' ? 'admin' : 'login'); // Respeta si estamos en Admin
       }
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [view]);
+  }, []);
 
   const handleLogout = () => { signOut(auth); setView('login'); };
   const getUserName = () => user && user.email ? user.email.split('@')[0] : "";
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900 dark:text-white">Cargando...</div>;
-  if (view === 'admin') return <AdminPanel onClose={() => setView(user ? 'census' : 'login')} />;
-  if (!user) return <Login />;
+
+  // RUTEO SEGURO: Si no hay usuario, solo podemos ver Login o AdminPanel
+  if (!user) {
+      if (view === 'admin') return <AdminPanel onClose={() => setView('login')} />;
+      return <Login onGoAdmin={() => setView('admin')} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-500">
@@ -115,8 +115,7 @@ export default function App() {
         {view === 'discharges' && <Discharges />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v53.0</span>
-        <button onClick={() => setView('admin')} className="opacity-10 hover:opacity-100 transition-opacity ml-2 p-1"><Lock size={12}/></button>
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v55.0</span>
       </footer>
     </div>
   );

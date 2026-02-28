@@ -8,13 +8,12 @@ export const DOCTORS = [
   "Dra. Hernandez", "Dra. Martinez", "Dra. Morin", "Dra. Turner"
 ].sort();
 
-// Valor por defecto para Firebase
 export const DEFAULT_RESIDENTS = [
   "Chris", "Efrain", "Alexis", "Andres", "Roxana", "Diego", "Ivan", "Mariel", 
   "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"
 ].sort();
 
-// Se restaura RESIDENTS para que Surgery.jsx no falle durante el Build
+// Evita que Vite tire error en Surgery.jsx
 export const RESIDENTS = [
   "Chris", "Efrain", "Alexis", "Andres", "Roxana", "Diego", "Ivan", "Mariel", 
   "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"

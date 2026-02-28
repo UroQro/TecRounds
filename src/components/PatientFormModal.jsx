@@ -12,7 +12,6 @@ export default function PatientFormModal({ onClose, mode, initialData, dynamicRe
   const [isOtherDoc, setIsOtherDoc] = useState(false);
   const [isOtherRes, setIsOtherRes] = useState(false);
 
-  // Lógica para mantener compatibilidad con residentes antiguos eliminados
   const resOptions = [...(dynamicResidents || [])];
   if (mode === 'edit' && form.resident && !resOptions.includes(form.resident) && form.resident !== 'Otro') {
       resOptions.push(form.resident);

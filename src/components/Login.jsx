@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebase';
+import { Lock } from 'lucide-react';
 
-export default function Login() {
+export default function Login({ onGoAdmin }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -29,7 +30,13 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100 dark:bg-slate-900 transition-colors">
-      <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-xl w-full max-w-sm border border-slate-200 dark:border-slate-700">
+      <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-xl w-full max-w-sm border border-slate-200 dark:border-slate-700 relative">
+        
+        {/* BOTON OCULTO DE ADMIN EN LA ESQUINA SUPERIOR DERECHA */}
+        <button onClick={onGoAdmin} className="absolute top-4 right-4 text-gray-400 opacity-10 hover:opacity-100 transition-opacity p-2">
+            <Lock size={16} />
+        </button>
+
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 text-center">Urología TecSalud</h1>
         {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 p-3 rounded text-sm mb-4 border border-red-200 dark:border-red-700">{error}</div>}
         <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
