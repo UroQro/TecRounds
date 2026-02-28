@@ -1,29 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { addDoc, updateDoc, collection, doc } from 'firebase/firestore';
-import { DOCTORS, LOCATIONS } from '../constants';
 import { getLocalISODate } from '../utils';
 
-export default function PatientFormModal({ onClose, mode, initialData, dynamicResidents }) {
+export default function PatientFormModal({ onClose, mode, initialData, dynamicResidents, dynamicDoctors, dynamicLocations }) {
   const [form, setForm] = useState(initialData || { 
       name: '', bed: '', hospital: '', type: 'HO', doctor: '', resident: '', admissionDate: getLocalISODate(), dob: '', diagnosis: '',
       antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
   });
   const [isOtherDoc, setIsOtherDoc] = useState(false);
   const [isOtherRes, setIsOtherRes] = useState(false);
+  const [isOtherHosp, setIsOtherHosp] = useState(false);
 
+  // Soporte de Legado: Mantener el valor si no está en la lista pero lo tiene el paciente guardado
   const resOptions = [...(dynamicResidents || [])];
-  if (mode === 'edit' && form.resident && !resOptions.includes(form.resident) && form.resident !== 'Otro') {
-      resOptions.push(form.resident);
-  }
+  if (mode === 'edit' && form.resident && !resOptions.includes(form.resident) && form.resident !== 'Otro') resOptions.push(form.resident);
   resOptions.sort();
+
+  const docOptions = [...(dynamicDoctors || [])];
+  if (mode === 'edit' && form.doctor && !docOptions.includes(form.doctor) && form.doctor !== 'Otro') docOptions.push(form.doctor);
+  docOptions.sort();
+
+  const hospOptions = [...(dynamicLocations || [])];
+  if (mode === 'edit' && form.hospital && !hospOptions.includes(form.hospital) && form.hospital !== 'Otro') hospOptions.push(form.hospital);
+  hospOptions.sort();
 
   useEffect(() => {
      if(mode === 'edit' && initialData) {
-         if(!DOCTORS.includes(initialData.doctor) && initialData.doctor) setIsOtherDoc(true);
+         if(!docOptions.includes(initialData.doctor) && initialData.doctor) setIsOtherDoc(true);
          if(!resOptions.includes(initialData.resident) && initialData.resident) setIsOtherRes(true);
+         if(!hospOptions.includes(initialData.hospital) && initialData.hospital) setIsOtherHosp(true);
      }
-  }, [mode, initialData, resOptions]);
+  }, [mode, initialData, resOptions, docOptions, hospOptions]);
 
   const handleSubmit = async (e) => {
       e.preventDefault();
@@ -42,12 +50,15 @@ export default function PatientFormModal({ onClose, mode, initialData, dynamicRe
               <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">{mode==='create'?'Nuevo Paciente':'Editar Paciente'}</h2>
               <form onSubmit={handleSubmit} className="space-y-3">
                   <div className="flex gap-2">
-                      <select className={`w-1/3 text-xs ${inputClass}`} value={form.hospital || 'HZH'} onChange={e=>setForm({...form, hospital:e.target.value})}>
-                          <option value="">Hospital...</option>{LOCATIONS.map(l=><option key={l} value={l}>{l}</option>)}
+                      <select className={`w-1/3 text-xs ${inputClass}`} value={isOtherHosp ? 'Otro' : (form.hospital || '')} 
+                              onChange={e=>{ if(e.target.value==='Otro') { setIsOtherHosp(true); setForm({...form, hospital: ''}); } else { setIsOtherHosp(false); setForm({...form, hospital:e.target.value}); }}}>
+                          <option value="">Hospital...</option>{hospOptions.map(l=><option key={l} value={l}>{l}</option>)}<option value="Otro">Otro...</option>
                       </select>
                       <input required placeholder="Cama" className={`w-1/3 ${inputClass}`} value={form.bed} onChange={e=>setForm({...form, bed:e.target.value})} />
                       <select className={`w-1/3 text-xs ${inputClass}`} value={form.type} onChange={e=>setForm({...form, type:e.target.value})}><option>HO</option><option>IC</option><option>SND</option><option>NOVER</option></select>
                   </div>
+                  {isOtherHosp && <input placeholder="Escribe el nombre del Hospital" className={`text-xs bg-blue-50 ${inputClass}`} value={form.hospital} onChange={e=>setForm({...form, hospital:e.target.value})} required />}
+                  
                   <input required placeholder="Nombre Completo" className={inputClass} value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
                   
                   <div className="bg-slate-50 dark:bg-slate-700/50 p-2 rounded border dark:border-slate-600">
@@ -64,14 +75,14 @@ export default function PatientFormModal({ onClose, mode, initialData, dynamicRe
                   <div className="space-y-1">
                       <select required={!isOtherDoc} className={`text-xs ${inputClass}`} value={isOtherDoc ? 'Otro' : form.doctor} 
                               onChange={e=>{ if(e.target.value==='Otro') { setIsOtherDoc(true); setForm({...form, doctor: ''}); } else { setIsOtherDoc(false); setForm({...form, doctor:e.target.value}); }}}>
-                          <option value="">Seleccionar Tratante...</option>{DOCTORS.map(d=><option key={d} value={d}>{d}</option>)}<option value="Otro">Otro / Agregar Nuevo</option>
+                          <option value="">Tratante...</option>{docOptions.map(d=><option key={d} value={d}>{d}</option>)}<option value="Otro">Otro / Agregar Nuevo</option>
                       </select>
                       {isOtherDoc && <input placeholder="Escribe nombre del Tratante" className={`text-xs bg-blue-50 ${inputClass}`} value={form.doctor} onChange={e=>setForm({...form, doctor:e.target.value})} required />}
                   </div>
                   <div className="space-y-1">
                       <select required={!isOtherRes} className={`text-xs ${inputClass}`} value={isOtherRes ? 'Otro' : form.resident} 
                               onChange={e=>{ if(e.target.value==='Otro') { setIsOtherRes(true); setForm({...form, resident: ''}); } else { setIsOtherRes(false); setForm({...form, resident:e.target.value}); }}}>
-                          <option value="">Seleccionar Residente...</option>{resOptions.map(r=><option key={r} value={r}>{r}</option>)}<option value="Otro">Otro / Agregar Nuevo</option>
+                          <option value="">Residente...</option>{resOptions.map(r=><option key={r} value={r}>{r}</option>)}<option value="Otro">Otro / Agregar Nuevo</option>
                       </select>
                       {isOtherRes && <input placeholder="Escribe nombre del Residente" className={`text-xs bg-blue-50 ${inputClass}`} value={form.resident} onChange={e=>setForm({...form, resident:e.target.value})} required />}
                   </div>

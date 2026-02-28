@@ -9,13 +9,17 @@ import Discharges from './components/Discharges';
 import AdminPanel from './components/AdminPanel';
 import { LogOut, ClipboardList, Archive, Scissors } from 'lucide-react';
 import { getLocalISODate } from './utils';
-import { DEFAULT_RESIDENTS } from './constants';
+import { DEFAULT_RESIDENTS, DOCTORS, LOCATIONS } from './constants';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
+  
+  // Estados para las 3 listas dinámicas
   const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
+  const [dynamicDoctors, setDynamicDoctors] = useState(DOCTORS);
+  const [dynamicLocations, setDynamicLocations] = useState(LOCATIONS);
 
   useEffect(() => {
       const updateTheme = () => {
@@ -29,12 +33,16 @@ export default function App() {
       return () => clearInterval(interval);
   }, []);
 
+  // Escuchar la base de datos en tiempo real
   useEffect(() => {
       const unsub = onSnapshot(doc(db, 'metadata', 'settings'), (docSnap) => {
-          if (docSnap.exists() && docSnap.data().residents) {
-              setDynamicResidents(docSnap.data().residents.sort());
+          if (docSnap.exists()) {
+              const data = docSnap.data();
+              setDynamicResidents(data.residents ? data.residents.sort() : DEFAULT_RESIDENTS);
+              setDynamicDoctors(data.doctors ? data.doctors.sort() : DOCTORS);
+              setDynamicLocations(data.locations ? data.locations.sort() : LOCATIONS);
           } else {
-              setDoc(doc(db, 'metadata', 'settings'), { residents: DEFAULT_RESIDENTS }, { merge: true });
+              setDoc(doc(db, 'metadata', 'settings'), { residents: DEFAULT_RESIDENTS, doctors: DOCTORS, locations: LOCATIONS }, { merge: true });
           }
       });
       return () => unsub();
@@ -100,12 +108,12 @@ export default function App() {
         </div>
       </header>
       <main className="flex-1 p-2 max-w-5xl mx-auto w-full pb-safe">
-        {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} />}
-        {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} />}
+        {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
+        {view === 'or' && <Surgery user={user} />}
         {view === 'discharges' && <Discharges />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v58.0</span>
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v59.0</span>
       </footer>
     </div>
   );

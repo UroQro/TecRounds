@@ -5,7 +5,7 @@ import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, 
 import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive } from 'lucide-react';
 import PatientFormModal from './PatientFormModal';
 
-export default function PatientDetail({ patient: initialPatient, onClose, user, dynamicResidents }) {
+export default function PatientDetail({ patient: initialPatient, onClose, user, dynamicResidents, dynamicDoctors, dynamicLocations }) {
   const [patient, setPatient] = useState(initialPatient);
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
@@ -319,7 +319,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
               ))}
           </div>
       </div>
-      {showEdit && <PatientFormModal onClose={() => {setShowEdit(false); onClose();}} mode="edit" initialData={patient} dynamicResidents={dynamicResidents} />}
+      {showEdit && <PatientFormModal onClose={() => {setShowEdit(false); onClose();}} mode="edit" initialData={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
     </div>
   );
 }

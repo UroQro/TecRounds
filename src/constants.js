@@ -8,7 +8,6 @@ export const DOCTORS = [
   "Dra. Hernandez", "Dra. Martinez", "Dra. Morin", "Dra. Turner"
 ].sort();
 
-// 🔥 NUEVA LISTA CON LOS RESIDENTES SOLICITADOS 🔥
 export const DEFAULT_RESIDENTS = [
   "Andres", "Roxana", "Diego", "Ivan", "Mariel", "Carlos", "Kevin", "Felipe", 
   "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
