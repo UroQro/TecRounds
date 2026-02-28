@@ -7,7 +7,7 @@ import Census from './components/Census';
 import Surgery from './components/Surgery';
 import Discharges from './components/Discharges';
 import AdminPanel from './components/AdminPanel';
-import { LogOut, ClipboardList, Archive, Scissors, Lock } from 'lucide-react';
+import { LogOut, ClipboardList, Archive, Scissors, Lock, Eye, EyeOff } from 'lucide-react';
 import { getLocalISODate } from './utils';
 import { DEFAULT_RESIDENTS, DOCTORS, LOCATIONS } from './constants';
 
@@ -16,6 +16,7 @@ export default function App() {
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState(false); // 🔥 ESTADO DE PRIVACIDAD 🔥
 
   const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
   const [dynamicDoctors, setDynamicDoctors] = useState(DOCTORS);
@@ -93,9 +94,12 @@ export default function App() {
         <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-2">
                 <h1 className="text-lg font-bold">Urología TecSalud</h1>
-                <div className="text-xs flex items-center gap-2 font-mono bg-gray-800 px-2 py-1 rounded">
-                    <span className="uppercase">{getUserName()}</span>
-                    <button onClick={handleLogout}><LogOut size={14}/></button>
+                <div className="text-xs flex items-center font-mono bg-gray-800 p-1 rounded">
+                    <button onClick={()=>setPrivacyMode(!privacyMode)} className={`p-1 rounded transition ${privacyMode?'text-red-400 bg-red-900/30':'text-gray-400 hover:text-white'}`} title="Modo Privacidad">
+                        {privacyMode ? <EyeOff size={16}/> : <Eye size={16}/>}
+                    </button>
+                    <span className="uppercase text-gray-300 mx-2 border-l border-gray-600 pl-2">{getUserName()}</span>
+                    <button onClick={handleLogout} className="text-gray-400 hover:text-white p-1"><LogOut size={14}/></button>
                 </div>
             </div>
             <nav className="flex space-x-2 overflow-x-auto pb-1">
@@ -106,12 +110,12 @@ export default function App() {
         </div>
       </header>
       <main className="flex-1 p-2 max-w-5xl mx-auto w-full pb-safe">
-        {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
-        {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
-        {view === 'discharges' && <Discharges />}
+        {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
+        {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
+        {view === 'discharges' && <Discharges privacyMode={privacyMode} />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v63.0</span>
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v64.0 Pro</span>
         <button onClick={() => setShowAdmin(true)} className="opacity-20 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
       </footer>
     </div>
