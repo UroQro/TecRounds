@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, writeBatch, arrayUnion } from 'firebase/firestore';
 import Login from './components/Login';
 import Census from './components/Census';
 import Surgery from './components/Surgery';
@@ -34,7 +34,7 @@ export default function App() {
           if (docSnap.exists() && docSnap.data().residents) {
               setDynamicResidents(docSnap.data().residents.sort());
           } else {
-              setDoc(doc(db, 'metadata', 'settings'), { residents: DEFAULT_RESIDENTS, bannedUsers: [] }, { merge: true });
+              setDoc(doc(db, 'metadata', 'settings'), { residents: DEFAULT_RESIDENTS, bannedUsers: [], knownUsers: [] }, { merge: true });
           }
       });
       return () => unsub();
@@ -60,7 +60,9 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
           const snap = await getDoc(doc(db, 'metadata', 'settings'));
-          if (snap.exists() && snap.data().bannedUsers?.includes(currentUser.email)) {
+          const data = snap.exists() ? snap.data() : {};
+          
+          if (data.bannedUsers?.includes(currentUser.email)) {
               alert("Acceso denegado. Este usuario ha sido dado de baja por el administrador.");
               await signOut(auth);
               setUser(null);
@@ -68,12 +70,19 @@ export default function App() {
               setLoading(false);
               return;
           }
+
+          // GUARDAR USUARIO CONOCIDO EN FIRESTORE (Para que el Admin lo pueda ver y borrar en lista)
+          const knownUsers = data.knownUsers || [];
+          if (!knownUsers.includes(currentUser.email)) {
+              await setDoc(doc(db, 'metadata', 'settings'), { knownUsers: arrayUnion(currentUser.email) }, { merge: true });
+          }
+
           setUser(currentUser);
-          setView('census'); // Si se loguea, fuerza ir al Censo
+          setView(prev => prev === 'login' ? 'census' : prev); 
           checkDailyReset(); 
       } else { 
           setUser(null);
-          setView(prev => prev === 'admin' ? 'admin' : 'login'); // Respeta si estamos en Admin
+          setView(prev => prev === 'admin' ? 'admin' : 'login'); 
       }
       setLoading(false);
     });
@@ -85,7 +94,6 @@ export default function App() {
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900 dark:text-white">Cargando...</div>;
 
-  // RUTEO SEGURO: Si no hay usuario, solo podemos ver Login o AdminPanel
   if (!user) {
       if (view === 'admin') return <AdminPanel onClose={() => setView('login')} />;
       return <Login onGoAdmin={() => setView('admin')} />;
@@ -115,7 +123,7 @@ export default function App() {
         {view === 'discharges' && <Discharges />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v55.0</span>
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v56.0</span>
       </footer>
     </div>
   );

@@ -13,7 +13,6 @@ export const DEFAULT_RESIDENTS = [
   "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"
 ].sort();
 
-// Evita que Vite tire error en Surgery.jsx
 export const RESIDENTS = [
   "Chris", "Efrain", "Alexis", "Andres", "Roxana", "Diego", "Ivan", "Mariel", 
   "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"
