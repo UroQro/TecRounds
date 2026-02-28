@@ -8,14 +8,15 @@ export const DOCTORS = [
   "Dra. Hernandez", "Dra. Martinez", "Dra. Morin", "Dra. Turner"
 ].sort();
 
+// 🔥 NUEVA LISTA CON LOS RESIDENTES SOLICITADOS 🔥
 export const DEFAULT_RESIDENTS = [
-  "Chris", "Efrain", "Alexis", "Andres", "Roxana", "Diego", "Ivan", "Mariel", 
-  "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"
+  "Andres", "Roxana", "Diego", "Ivan", "Mariel", "Carlos", "Kevin", "Felipe", 
+  "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
 ].sort();
 
 export const RESIDENTS = [
-  "Chris", "Efrain", "Alexis", "Andres", "Roxana", "Diego", "Ivan", "Mariel", 
-  "Carlos", "Kevin", "Felipe", "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne"
+  "Andres", "Roxana", "Diego", "Ivan", "Mariel", "Carlos", "Kevin", "Felipe", 
+  "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
 ].sort();
 
 export const LOCATIONS = [
