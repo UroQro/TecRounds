@@ -61,15 +61,3 @@ export const downloadCSV = (data, headers, filename) => {
   link.click();
   document.body.removeChild(link);
 };
-
-// 🔥 FUNCIÓN DE PRIVACIDAD 🔥
-export const applyPrivacy = (text, isPrivacyMode, type = 'name') => {
-    if (!isPrivacyMode || !text) return text;
-    if (type === 'name') {
-        return text.split(' ').map(w => w.charAt(0) ? w.charAt(0) + '***' : '').join(' ');
-    }
-    if (type === 'bed') {
-        return '***';
-    }
-    return text;
-};

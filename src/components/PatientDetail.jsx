@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { doc, updateDoc, arrayUnion, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
-import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate, applyPrivacy } from '../utils';
+import { doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
+import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate } from '../utils';
 import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive } from 'lucide-react';
 import PatientFormModal from './PatientFormModal';
 
-export default function PatientDetail({ patient: initialPatient, onClose, user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
+export default function PatientDetail({ patient: initialPatient, onClose, user, dynamicResidents, dynamicDoctors, dynamicLocations }) {
   const [patient, setPatient] = useState(initialPatient);
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
@@ -51,19 +51,16 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
   const bmi = lastSomato ? lastSomato.bmi : calculateBMI(patient.weight, patient.height);
 
   useEffect(() => {
-    // Determine if we should listen to patients or archived_patients
-    const coll = patient.discharged ? "archived_patients" : "patients";
-    const unsub = onSnapshot(doc(db, coll, initialPatient.id), (docSnapshot) => {
+    const unsub = onSnapshot(doc(db, "patients", initialPatient.id), (docSnapshot) => {
         if (docSnapshot.exists()) setPatient({ id: docSnapshot.id, ...docSnapshot.data() });
     });
     return () => unsub();
-  }, [initialPatient.id, patient.discharged]);
+  }, [initialPatient.id]);
 
   const getUserName = () => user.email ? user.email.split('@')[0] : 'User';
 
   const togglePreDischarge = async () => {
-      const coll = patient.discharged ? "archived_patients" : "patients";
-      await updateDoc(doc(db, coll, patient.id), { preDischarge: !patient.preDischarge });
+      await updateDoc(doc(db, "patients", patient.id), { preDischarge: !patient.preDischarge });
   };
 
   const saveNote = async () => {
@@ -82,14 +79,13 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
       }
 
       try {
-          const coll = patient.discharged ? "archived_patients" : "patients";
           if (editingNote) {
               const updatedNotes = patient.notes.map(n => n.id === editingNote.id ? { ...n, content, type: noteType } : n);
-              await updateDoc(doc(db, coll, patient.id), { notes: updatedNotes });
+              await updateDoc(doc(db, "patients", patient.id), { notes: updatedNotes });
               cancelEditing();
           } else {
               const newNote = { id: Date.now().toString(), type: noteType, author: getUserName(), timestamp: new Date().toISOString(), content };
-              await updateDoc(doc(db, coll, patient.id), { notes: arrayUnion(newNote) });
+              await updateDoc(doc(db, "patients", patient.id), { notes: arrayUnion(newNote) });
               cancelEditing();
           }
       } catch (err) { alert(err.message); }
@@ -97,10 +93,9 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
 
   const copyMSJ = (data) => {
       const f = data;
-      // Aplica máscara si privacy mode esta activado para poder mandar MSJs censurados seguros
-      let text = `*${applyPrivacy(patient.bed, privacyMode, 'bed')}*`;
+      let text = `*${patient.bed}*`;
       if(patient.hospital) text += ` (${patient.hospital})`;
-      text += ` - *${applyPrivacy(patient.name, privacyMode, 'name')}*`;
+      text += ` - *${patient.name}*`;
 
       if (f.subj) text += `\n*S:* ${f.subj}`;
       const sv = [];
@@ -118,12 +113,12 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
       if (f.plan) text += `\n*A/P:* ${f.plan}`;
 
       navigator.clipboard.writeText(text);
-      alert("Copiado Seguro!");
+      alert("Copiado!");
   };
 
-  const addTask = async () => { if(!newTask) return; const coll = patient.discharged ? "archived_patients" : "patients"; const newList = [...(patient.checklist || []), { task: newTask, done: false }]; await updateDoc(doc(db, coll, patient.id), { checklist: newList, hasPending: true }); setNewTask(''); };
-  const toggleTask = async (idx) => { const coll = patient.discharged ? "archived_patients" : "patients"; const newList = [...(patient.checklist || [])]; newList[idx].done = !newList[idx].done; const hasPending = newList.some(x => !x.done); await updateDoc(doc(db, coll, patient.id), { checklist: newList, hasPending }); };
-  const deleteNote = async (noteId) => { if(!confirm("¿Eliminar?")) return; const coll = patient.discharged ? "archived_patients" : "patients"; const newNotes = patient.notes.filter(n => n.id !== noteId); await updateDoc(doc(db, coll, patient.id), { notes: newNotes }); };
+  const addTask = async () => { if(!newTask) return; const newList = [...(patient.checklist || []), { task: newTask, done: false }]; await updateDoc(doc(db, "patients", patient.id), { checklist: newList, hasPending: true }); setNewTask(''); };
+  const toggleTask = async (idx) => { const newList = [...(patient.checklist || [])]; newList[idx].done = !newList[idx].done; const hasPending = newList.some(x => !x.done); await updateDoc(doc(db, "patients", patient.id), { checklist: newList, hasPending }); };
+  const deleteNote = async (noteId) => { if(!confirm("¿Eliminar?")) return; const newNotes = patient.notes.filter(n => n.id !== noteId); await updateDoc(doc(db, "patients", patient.id), { notes: newNotes }); };
   
   const archiveTasks = async () => {
     const completed = patient.checklist?.filter(t => t.done) || [];
@@ -132,8 +127,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
     const active = patient.checklist.filter(t => !t.done);
     const text = "✅ PENDIENTES RESUELTOS:\n" + completed.map(t => "• " + t.task).join("\n");
     const newNote = { id: Date.now().toString(), type: 'texto', author: getUserName(), timestamp: new Date().toISOString(), content: { text } };
-    const coll = patient.discharged ? "archived_patients" : "patients";
-    await updateDoc(doc(db, coll, patient.id), { checklist: active, notes: arrayUnion(newNote), hasPending: active.length > 0 });
+    await updateDoc(doc(db, "patients", patient.id), { checklist: active, notes: arrayUnion(newNote), hasPending: active.length > 0 });
   };
 
   const LabGrid = ({ c }) => (
@@ -152,9 +146,9 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
       <div className={`border-b border-blue-100 dark:border-slate-700 p-3 sticky top-0 z-20 flex gap-2 items-center shadow-sm ${patient.preDischarge ? 'bg-purple-50 dark:bg-purple-900' : 'bg-white dark:bg-slate-800'}`}>
           <button onClick={onClose}><ArrowLeft className="text-slate-600 dark:text-slate-300"/></button>
           <div className="flex-1">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-none">{applyPrivacy(patient.name, privacyMode, 'name')}</h2>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-none">{patient.name}</h2>
               <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex gap-2 items-center">
-                  <span>{applyPrivacy(patient.bed, privacyMode, 'bed')} {patient.hospital && `(${patient.hospital})`} • {calculateAge(patient.dob)}a</span>
+                  <span>{patient.bed} {patient.hospital && `(${patient.hospital})`} • {calculateAge(patient.dob)}a</span>
                   {bmi && <span className="bg-white dark:bg-slate-700 px-1 rounded font-bold text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-slate-600">IMC: {bmi}</span>}
               </div>
           </div>
