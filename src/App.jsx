@@ -7,7 +7,7 @@ import Census from './components/Census';
 import Surgery from './components/Surgery';
 import Discharges from './components/Discharges';
 import AdminPanel from './components/AdminPanel';
-import { LogOut, ClipboardList, Archive, Scissors } from 'lucide-react';
+import { LogOut, ClipboardList, Archive, Scissors, Lock } from 'lucide-react';
 import { getLocalISODate } from './utils';
 import { DEFAULT_RESIDENTS, DOCTORS, LOCATIONS } from './constants';
 
@@ -16,7 +16,9 @@ export default function App() {
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
   
-  // Estados para las 3 listas dinámicas
+  // Nuevo estado para mostrar Admin Panel como Overlay flotante
+  const [showAdmin, setShowAdmin] = useState(false);
+
   const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
   const [dynamicDoctors, setDynamicDoctors] = useState(DOCTORS);
   const [dynamicLocations, setDynamicLocations] = useState(LOCATIONS);
@@ -33,7 +35,6 @@ export default function App() {
       return () => clearInterval(interval);
   }, []);
 
-  // Escuchar la base de datos en tiempo real
   useEffect(() => {
       const unsub = onSnapshot(doc(db, 'metadata', 'settings'), (docSnap) => {
           if (docSnap.exists()) {
@@ -72,26 +73,26 @@ export default function App() {
           checkDailyReset(); 
       } else { 
           setUser(null);
-          setView(prev => prev === 'admin' ? 'admin' : 'login'); 
+          setView('login');
       }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  const handleLogout = () => { signOut(auth); setView('login'); };
+  const handleLogout = () => { signOut(auth); setView('login'); setShowAdmin(false); };
   const getUserName = () => user && user.email ? user.email.split('@')[0] : "";
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900 dark:text-white">Cargando...</div>;
-
-  if (!user) {
-      if (view === 'admin') return <AdminPanel onClose={() => setView('login')} />;
-      return <Login onGoAdmin={() => setView('admin')} />;
-  }
+  if (!user) return <Login />;
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-500">
-      <header className="bg-black text-white p-3 shadow-md sticky top-0 z-50 pt-safe">
+    <div className="min-h-screen flex flex-col font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-500 relative">
+      
+      {/* OVERLAY DE ADMINISTRADOR (Garantiza permisos) */}
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+
+      <header className="bg-black text-white p-3 shadow-md sticky top-0 z-40 pt-safe">
         <div className="max-w-5xl mx-auto">
             <div className="flex justify-between items-center mb-2">
                 <h1 className="text-lg font-bold">Urología TecSalud</h1>
@@ -113,7 +114,8 @@ export default function App() {
         {view === 'discharges' && <Discharges />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v59.0</span>
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v60.0</span>
+        <button onClick={() => setShowAdmin(true)} className="opacity-10 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
       </footer>
     </div>
   );

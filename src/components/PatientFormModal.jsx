@@ -12,7 +12,6 @@ export default function PatientFormModal({ onClose, mode, initialData, dynamicRe
   const [isOtherRes, setIsOtherRes] = useState(false);
   const [isOtherHosp, setIsOtherHosp] = useState(false);
 
-  // Soporte de Legado: Mantener el valor si no está en la lista pero lo tiene el paciente guardado
   const resOptions = [...(dynamicResidents || [])];
   if (mode === 'edit' && form.resident && !resOptions.includes(form.resident) && form.resident !== 'Otro') resOptions.push(form.resident);
   resOptions.sort();

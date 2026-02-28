@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { doc, setDoc, arrayUnion, arrayRemove, onSnapshot } from 'firebase/firestore';
-import { ArrowLeft, Trash2, ShieldAlert, Building2, User, Stethoscope } from 'lucide-react';
+import { ArrowLeft, Trash2, ShieldAlert, Building2, User, Stethoscope, RefreshCcw } from 'lucide-react';
 import { DEFAULT_RESIDENTS, DOCTORS, LOCATIONS } from '../constants'; 
 
 export default function AdminPanel({ onClose }) {
@@ -33,9 +33,9 @@ export default function AdminPanel({ onClose }) {
                     setResidents(data.residents ? data.residents.sort() : DEFAULT_RESIDENTS);
                     setDoctors(data.doctors ? data.doctors.sort() : DOCTORS);
                     setLocations(data.locations ? data.locations.sort() : LOCATIONS);
-                } else {
-                    setDoc(doc(db, 'metadata', 'settings'), { residents: DEFAULT_RESIDENTS, doctors: DOCTORS, locations: LOCATIONS }, { merge: true });
                 }
+            }, (error) => {
+                showMsg("Error conectando a Firebase: " + error.message, "error");
             });
             return () => unsub();
         }
@@ -50,8 +50,12 @@ export default function AdminPanel({ onClose }) {
         if(activeTab === 'doctores') field = 'doctors';
         if(activeTab === 'hospitales') field = 'locations';
 
-        await setDoc(doc(db, 'metadata', 'settings'), { [field]: arrayUnion(formatted) }, { merge: true });
-        setNewItem(''); showMsg("Agregado correctamente");
+        try {
+            await setDoc(doc(db, 'metadata', 'settings'), { [field]: arrayUnion(formatted) }, { merge: true });
+            setNewItem(''); showMsg("Agregado correctamente");
+        } catch (err) {
+            showMsg("Error: " + err.message, "error");
+        }
     };
     
     const handleRemoveItem = async (item) => {
@@ -61,23 +65,43 @@ export default function AdminPanel({ onClose }) {
         if(activeTab === 'doctores') field = 'doctors';
         if(activeTab === 'hospitales') field = 'locations';
 
-        await setDoc(doc(db, 'metadata', 'settings'), { [field]: arrayRemove(item) }, { merge: true });
-        showMsg("Eliminado correctamente");
+        try {
+            await setDoc(doc(db, 'metadata', 'settings'), { [field]: arrayRemove(item) }, { merge: true });
+            showMsg("Eliminado correctamente");
+        } catch (err) {
+            showMsg("Error: " + err.message, "error");
+        }
+    };
+
+    const resetToDefaults = async () => {
+        if(!confirm(`¿RESTABLECER ${activeTab.toUpperCase()}? Esto borrará tus cambios manuales en esta pestaña y cargará la lista base.`)) return;
+        let field = '';
+        let defaultData = [];
+        if(activeTab === 'residentes') { field = 'residents'; defaultData = DEFAULT_RESIDENTS; }
+        if(activeTab === 'doctores') { field = 'doctors'; defaultData = DOCTORS; }
+        if(activeTab === 'hospitales') { field = 'locations'; defaultData = LOCATIONS; }
+
+        try {
+            await setDoc(doc(db, 'metadata', 'settings'), { [field]: defaultData }, { merge: true });
+            showMsg("Lista restaurada exitosamente");
+        } catch (err) {
+            showMsg("Error: " + err.message, "error");
+        }
     };
 
     const inputClass = "w-full p-3 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white";
 
     if(!authOk) {
         return (
-            <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100 dark:bg-slate-900">
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-xl w-full max-w-sm border-t-4 border-red-600">
+            <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-2xl w-full max-w-sm border-t-4 border-red-600">
                     <button onClick={onClose} className="mb-4 text-gray-500 hover:text-gray-900 dark:hover:text-white"><ArrowLeft size={20}/></button>
-                    <h2 className="text-xl font-black text-center mb-6 text-slate-900 dark:text-white flex justify-center items-center gap-2"><ShieldAlert className="text-red-600"/> Consola Admin</h2>
+                    <h2 className="text-xl font-black text-center mb-6 text-slate-900 dark:text-white flex justify-center items-center gap-2"><ShieldAlert className="text-red-600"/> Acceso Restringido</h2>
                     {msg.text && <div className="bg-red-100 text-red-700 p-2 rounded text-sm mb-4">{msg.text}</div>}
                     <form onSubmit={handleLogin} className="space-y-4">
-                        <input placeholder="Usuario" className={inputClass} value={adminUser} onChange={e=>setAdminUser(e.target.value.toUpperCase())} />
-                        <input type="password" placeholder="Contraseña" className={inputClass} value={adminPass} onChange={e=>setAdminPass(e.target.value)} />
-                        <button className="w-full bg-red-600 text-white font-bold py-3 rounded shadow hover:bg-red-700 transition">Ingresar</button>
+                        <input placeholder="Usuario Admin" className={inputClass} value={adminUser} onChange={e=>setAdminUser(e.target.value.toUpperCase())} />
+                        <input type="password" placeholder="Clave Maestra" className={inputClass} value={adminPass} onChange={e=>setAdminPass(e.target.value)} />
+                        <button className="w-full bg-red-600 text-white font-bold py-3 rounded shadow hover:bg-red-700 transition">Entrar al Sistema</button>
                     </form>
                 </div>
             </div>
@@ -88,11 +112,13 @@ export default function AdminPanel({ onClose }) {
     const placeholderText = activeTab === 'hospitales' ? "Ej. Zambrano" : "Nombre...";
 
     return (
-        <div className="min-h-screen bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-white p-4 pb-20">
-            <div className="max-w-3xl mx-auto">
-                <div className="flex items-center gap-4 mb-6">
-                    <button onClick={onClose} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow hover:bg-gray-50 transition"><ArrowLeft size={20}/></button>
-                    <h1 className="text-2xl font-black text-red-600 dark:text-red-500 flex items-center gap-2"><ShieldAlert/> Administración</h1>
+        <div className="fixed inset-0 bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-white z-[100] overflow-y-auto p-4 pb-20">
+            <div className="max-w-3xl mx-auto pt-safe mt-4">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                        <button onClick={onClose} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow hover:bg-gray-50 transition"><ArrowLeft size={20}/></button>
+                        <h1 className="text-2xl font-black text-red-600 dark:text-red-500 flex items-center gap-2"><ShieldAlert/> Data Admin</h1>
+                    </div>
                 </div>
 
                 {msg.text && <div className={`p-3 rounded mb-6 font-bold text-sm shadow-sm ${msg.type==='error'?'bg-red-100 text-red-700 border-l-4 border-red-500':'bg-green-100 text-green-700 border-l-4 border-green-500'}`}>{msg.text}</div>}
@@ -104,8 +130,15 @@ export default function AdminPanel({ onClose }) {
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow border dark:border-slate-700">
-                    <h2 className="font-bold mb-2 text-lg text-slate-800 dark:text-white capitalize">Listado de {activeTab}</h2>
-                    <p className="text-sm text-gray-500 mb-6">Edita las opciones que aparecen en los menús desplegables. Eliminar de esta lista no borra el registro de los pacientes anteriores.</p>
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <h2 className="font-bold text-lg text-slate-800 dark:text-white capitalize">Listado de {activeTab}</h2>
+                            <p className="text-sm text-gray-500 mt-1">Modifica las opciones disponibles en los menús de la aplicación.</p>
+                        </div>
+                        <button onClick={resetToDefaults} className="flex items-center gap-1 bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-500 px-3 py-1 rounded text-xs font-bold shadow-sm transition">
+                            <RefreshCcw size={14}/> Restaurar Original
+                        </button>
+                    </div>
                     
                     <form onSubmit={handleAddItem} className="flex gap-2 mb-6">
                         <input className={inputClass} placeholder={placeholderText} value={newItem} onChange={e=>setNewItem(e.target.value)} />
@@ -113,7 +146,7 @@ export default function AdminPanel({ onClose }) {
                     </form>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        {currentList.length === 0 && <p className="text-gray-400 py-4 col-span-3">Cargando datos...</p>}
+                        {currentList.length === 0 && <p className="text-gray-400 py-4 col-span-3">Cargando datos (Asegúrate de estar conectado a internet)...</p>}
                         {currentList.map(item => (
                             <div key={item} className="flex justify-between items-center bg-gray-50 dark:bg-slate-700 p-3 rounded-lg border dark:border-slate-600 shadow-sm">
                                 <span className="font-bold text-slate-800 dark:text-slate-100 truncate pr-2" title={item}>{item}</span>

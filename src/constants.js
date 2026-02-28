@@ -8,6 +8,7 @@ export const DOCTORS = [
   "Dra. Hernandez", "Dra. Martinez", "Dra. Morin", "Dra. Turner"
 ].sort();
 
+// 🔥 LISTA OFICIAL MARZO 2026 🔥
 export const DEFAULT_RESIDENTS = [
   "Andres", "Roxana", "Diego", "Ivan", "Mariel", "Carlos", "Kevin", "Felipe", 
   "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
