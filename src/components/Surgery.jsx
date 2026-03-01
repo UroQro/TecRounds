@@ -140,12 +140,13 @@ function SurgeryModal({ onClose, initialData, dynamicResidents, dynamicDoctors, 
     locOptions.sort();
 
     useEffect(() => {
-        if(initialData && !initialData.resident2) setForm(prev => ({...prev, resident2: ''}));
+        // CORRECCIÓN: Dependemos solo de initialData para evitar el ciclo infinito
         if(initialData) {
-            if(!docOptions.includes(initialData.doctor) && initialData.doctor) setIsOtherDoc(true);
-            if(!resOptions.includes(initialData.resident) && initialData.resident) setIsOtherRes(true);
+            if(!initialData.resident2) setForm(prev => ({...prev, resident2: ''}));
+            if(initialData.doctor && !dynamicDoctors?.includes(initialData.doctor)) setIsOtherDoc(true);
+            if(initialData.resident && !dynamicResidents?.includes(initialData.resident)) setIsOtherRes(true);
         }
-    }, [initialData, docOptions, resOptions]);
+    }, [initialData]);
 
     const handleSubmit = async (e) => { e.preventDefault(); try { if (initialData) { await updateDoc(doc(db, "surgeries", initialData.id), form); } else { await addDoc(collection(db, "surgeries"), form); } onClose(); } catch(err) { alert(err.message); } };
     
