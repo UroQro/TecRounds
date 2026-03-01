@@ -13,7 +13,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
   const resiList = dynamicResidents || [];
 
   useEffect(() => {
-    // Para el CSV se necesita TODO, así que pedimos la colección completa
     const q = query(collection(db, "surgeries"));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -28,12 +27,15 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
   const handleDelete = async (id) => { if(confirm("¿Borrar cirugía?")) await deleteDoc(doc(db, "surgeries", id)); };
 
   const exportSurgeries = () => {
-      // Exporta la lista COMPLETA que sacamos de Firebase
       const data = surgeries.map(s => [s.date, s.time, s.patientName, s.procedure, s.location, s.doctor, s.resident || 'Por Asignar', s.completed ? 'Si':'No']);
       downloadCSV(data, ["Fecha", "Hora", "Paciente", "Procedimiento", "Sede", "Tratante", "Residente", "Completada"], "Historico_Quirofano.csv");
   };
 
   const handleEdit = (s) => { setEditingSurgery(s); setShowModal(true); };
+  
+  // Función para abrir el modal en blanco para crear una NUEVA cirugía
+  const handleAdd = () => { setEditingSurgery(null); setShowModal(true); };
+
   const toggleComplete = async (s) => { await updateDoc(doc(db, "surgeries", s.id), { completed: !s.completed }); };
   const toggleCancel = async (s) => { if(confirm(s.cancelled ? "¿Reactivar cirugía?" : "¿Cancelar cirugía?")) { await updateDoc(doc(db, "surgeries", s.id), { cancelled: !s.cancelled }); } };
   
@@ -57,9 +59,8 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
   const today = getLocalISODate();
   let lastDate = null;
   
-  // Para la pantalla (GUI), filtramos y OCULTAMOS las pasadas
   const filteredList = surgeries.filter(s => { 
-      if (s.date < today) return false; // Magia: No se ve en pantalla, pero sí baja al CSV
+      if (s.date < today) return false; 
       if(!filterRes) return true; 
       if(filterRes === 'Por Asignar') return !s.resident; 
       return s.resident === filterRes || s.resident2 === filterRes; 
@@ -68,7 +69,14 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
   return (
     <div className="pb-24">
        <div className="flex flex-col gap-2 mb-4 bg-white dark:bg-slate-800 p-3 rounded border border-blue-100 dark:border-slate-700 shadow-md dark:shadow-sm transition-colors">
-           <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><Calendar className="text-blue-600 dark:text-blue-400"/> Quirófano</h2><button onClick={exportSurgeries} className="bg-green-600 text-white text-xs px-3 py-1 rounded font-bold shadow flex gap-1 items-center hover:bg-green-700"><Download size={14}/> CSV Total</button></div>
+           <div className="flex justify-between items-center">
+               <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><Calendar className="text-blue-600 dark:text-blue-400"/> Quirófano</h2>
+               <div className="flex gap-2">
+                   {/* AQUÍ ESTÁ EL BOTÓN DE AGREGAR CIRUGÍA QUE FALTABA */}
+                   <button onClick={handleAdd} className="bg-blue-600 text-white text-xs px-3 py-1 rounded font-bold shadow flex gap-1 items-center hover:bg-blue-700"><Plus size={14}/> Agregar</button>
+                   <button onClick={exportSurgeries} className="bg-green-600 text-white text-xs px-3 py-1 rounded font-bold shadow flex gap-1 items-center hover:bg-green-700"><Download size={14}/> CSV Total</button>
+               </div>
+           </div>
            <select className="border border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded p-1 text-xs w-full" value={filterRes} onChange={e=>setFilterRes(e.target.value)}><option value="">Todos los Residentes</option><option value="Por Asignar">Por Asignar</option>{resiList.map(r=><option key={r} value={r}>{r}</option>)}</select>
        </div>
        <div className="space-y-3">
@@ -140,7 +148,6 @@ function SurgeryModal({ onClose, initialData, dynamicResidents, dynamicDoctors, 
     locOptions.sort();
 
     useEffect(() => {
-        // CORRECCIÓN: Dependemos solo de initialData para evitar el ciclo infinito
         if(initialData) {
             if(!initialData.resident2) setForm(prev => ({...prev, resident2: ''}));
             if(initialData.doctor && !dynamicDoctors?.includes(initialData.doctor)) setIsOtherDoc(true);
