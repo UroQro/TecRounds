@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, updateDoc, doc, query, orderBy } from 'firebase/firestore';
-import { calculateLOS, downloadCSV, calculateAge } from '../utils';
+import { collection, onSnapshot, updateDoc, doc, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { calculateLOS, downloadCSV, calculateAge, applyPrivacy } from '../utils';
 import PatientDetail from './PatientDetail';
 import PatientFormModal from './PatientFormModal';
 import { Plus, CheckSquare, Square, LogOut } from 'lucide-react';
 
-export default function Census({ user, dynamicResidents, dynamicDoctors, dynamicLocations }) {
+export default function Census({ user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -18,12 +18,25 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPatients(data.filter(p => !p.discharged));
-    });
+    }, (error) => { console.error(error); });
     return () => unsubscribe();
   }, []);
 
   const toggleStatus = async (e, p) => { e.stopPropagation(); const newStatus = p.status === 'done' ? 'pending' : 'done'; await updateDoc(doc(db, "patients", p.id), { status: newStatus }); };
-  const dischargePatient = async (e, p) => { e.stopPropagation(); if(confirm(`¿Egresar a ${p.name}?`)) { await updateDoc(doc(db, "patients", p.id), { discharged: true, dischargeDate: new Date().toISOString() }); } };
+  
+  const dischargePatient = async (e, p) => { 
+      e.stopPropagation(); 
+      if(confirm(`¿Egresar a ${applyPrivacy(p.name, privacyMode, 'name')}? Su expediente se moverá al archivo histórico.`)) { 
+          try {
+              const pRef = doc(db, "patients", p.id);
+              const aRef = doc(db, "archived_patients", p.id);
+              await setDoc(aRef, { ...p, discharged: true, dischargeDate: new Date().toISOString() });
+              await deleteDoc(pRef);
+          } catch(err) {
+              alert("Error al egresar: " + err.message);
+          }
+      } 
+  };
 
   const getCardColor = (p) => {
     if (p.type === 'NOVER') return "bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-600 text-gray-400";
@@ -36,7 +49,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
   const exportDOP = () => { const data = patients.filter(p => p.doctor === "Dr. Olvera").map(p => [p.bed, p.name, p.diagnosis, calculateLOS(p.admissionDate)]); downloadCSV(data, ["Cama", "Nombre", "Dx", "Dias"], "Censo_Dr_Olvera.csv"); };
   const exportGeneral = () => { const data = patients.map(p => [p.bed, p.type, p.name, p.admissionDate, calculateLOS(p.admissionDate), p.dob, calculateAge(p.dob), p.diagnosis, p.doctor, p.hospital || '']); downloadCSV(data, ["Cuarto", "IC/HO", "Nombre", "Ingreso", "Dias", "Nacimiento", "Edad", "Dx", "Tratante", "Hospital"], "Censo_General.csv"); };
 
-  if (selectedPatient) return <PatientDetail patient={selectedPatient} onClose={() => setSelectedPatient(null)} user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />;
+  if (selectedPatient) return <PatientDetail patient={selectedPatient} onClose={() => setSelectedPatient(null)} user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />;
 
   const sortedPatients = [...patients].sort((a, b) => {
       if (a.type === 'NOVER' && b.type !== 'NOVER') return 1;
@@ -59,11 +72,11 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                <div className="flex justify-between items-start">
                   <div className="flex-1 pr-2">
                      <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-black text-white px-2 py-1 rounded font-black text-lg shadow-sm border border-slate-700">{p.bed}</span>
+                        <span className="bg-black text-white px-2 py-1 rounded font-black text-lg shadow-sm border border-slate-700">{applyPrivacy(p.bed, privacyMode, 'bed')}</span>
                         {p.hospital && <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-900 px-1 rounded">{p.hospital}</span>}
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded border border-black/10 dark:border-white/10 uppercase tracking-wider ${p.type==='NOVER'?'bg-gray-100 dark:bg-slate-700 text-gray-500':'bg-white dark:bg-slate-800 dark:text-white'}`}>{p.type}</span>
                      </div>
-                     <h3 className="font-extrabold text-lg text-blue-700 dark:text-blue-300 leading-tight mb-1">{p.name}</h3>
+                     <h3 className="font-extrabold text-lg text-blue-700 dark:text-blue-300 leading-tight mb-1">{applyPrivacy(p.name, privacyMode, 'name')}</h3>
                      <p className="text-xs opacity-75 mb-1 dark:text-slate-300 text-gray-700">{calculateAge(p.dob)} años • {p.diagnosis}</p>
                      <div className="text-xs opacity-75 flex justify-between bg-black/5 dark:bg-white/5 p-1 rounded dark:text-slate-400 text-slate-600"><span>{p.doctor}</span><span className="font-semibold">{p.resident}</span></div>
                   </div>

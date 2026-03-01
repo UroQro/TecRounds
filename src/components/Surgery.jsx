@@ -1,27 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, query, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, query, deleteDoc, doc, updateDoc, where } from 'firebase/firestore';
 import { Plus, Trash2, Calendar, Download, Edit, CheckCircle, XCircle } from 'lucide-react';
-import { downloadCSV, getLocalISODate } from '../utils';
+import { downloadCSV, getLocalISODate, applyPrivacy } from '../utils';
+import PatientDetail from './PatientDetail';
 
-export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynamicLocations }) {
+export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
   const [surgeries, setSurgeries] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingSurgery, setEditingSurgery] = useState(null);
   const [filterRes, setFilterRes] = useState('');
+  
+  const [daysBack, setDaysBack] = useState(15); 
 
-  // Fallback si no han cargado
   const resiList = dynamicResidents || [];
 
   useEffect(() => {
-    const q = query(collection(db, "surgeries"));
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - daysBack);
+    const limitStr = limitDate.toISOString().slice(0, 10);
+
+    const q = query(collection(db, "surgeries"), where("date", ">=", limitStr));
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       data.sort((a,b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
       setSurgeries(data);
-    });
+    }, (error) => { console.error(error); });
     return () => unsubscribe();
-  }, []);
+  }, [daysBack]);
 
   const handleDelete = async (id) => { if(confirm("¿Borrar cirugía?")) await deleteDoc(doc(db, "surgeries", id)); };
 
@@ -38,25 +45,22 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
       if (s.cancelled) return "bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 opacity-50"; 
       if (s.completed) return "bg-white dark:bg-green-900/30 border-l-[8px] border-green-600 dark:border-green-500 shadow-md"; 
       
-      // LOCATION BASED COLORS
-      if (s.location === 'HZH') return "bg-white dark:bg-blue-900/30 border-l-[8px] border-blue-600 dark:border-blue-600 shadow-md"; // BLUE FOR ZAMBRANO
-      if (s.location === 'Instituto') return "bg-white dark:bg-orange-900/30 border-l-[8px] border-orange-500 dark:border-orange-500 shadow-md"; // ORANGE FOR INSTITUTE
+      if (s.location === 'HZH') return "bg-white dark:bg-blue-900/30 border-l-[8px] border-blue-600 dark:border-blue-600 shadow-md"; 
+      if (s.location === 'Instituto') return "bg-white dark:bg-orange-900/30 border-l-[8px] border-orange-500 dark:border-orange-500 shadow-md"; 
       
-      // DEFAULT / OTHERS
       return "bg-white dark:bg-slate-800 border-l-[8px] border-gray-400 dark:border-slate-600 shadow-md";
   };
 
   const getDayOpacity = (dateStr) => {
       const today = getLocalISODate();
-      if (dateStr < today) return 'hidden'; 
-      if (dateStr === today) return 'opacity-100'; 
-      return 'opacity-75'; 
+      if (dateStr < today) return 'opacity-60'; 
+      if (dateStr === today) return 'opacity-100 ring-2 ring-blue-200 dark:ring-blue-900/50'; 
+      return 'opacity-90'; 
   };
 
   const today = getLocalISODate();
   let lastDate = null;
   const filteredList = surgeries.filter(s => { 
-      if (s.date < today) return false; 
       if(!filterRes) return true; 
       if(filterRes === 'Por Asignar') return !s.resident; 
       return s.resident === filterRes || s.resident2 === filterRes; 
@@ -71,17 +75,17 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
        <div className="space-y-3">
            {filteredList.map(s => {
                const dateObj = new Date(s.date + 'T12:00:00');
-               const dateStr = dateObj.toLocaleDateString('es-MX', {weekday: 'long', day: 'numeric', month: 'long'});
+               const dateStr = dateObj.toString() !== 'Invalid Date' ? dateObj.toLocaleDateString('es-MX', {weekday: 'long', day: 'numeric', month: 'long'}) : s.date;
                const showHeader = s.date !== lastDate;
                lastDate = s.date;
                const opacityClass = getDayOpacity(s.date);
 
                return (
                <React.Fragment key={s.id}>
-                   {showHeader && <h3 className={`text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mt-6 mb-2 pl-1 border-b border-gray-200 dark:border-slate-700 pb-1 ${opacityClass}`}>{dateStr} {s.date === today && <span className="text-blue-600 dark:text-blue-400 ml-2">(HOY)</span>}</h3>}
+                   {showHeader && <h3 className={`text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mt-6 mb-2 pl-1 border-b border-gray-200 dark:border-slate-700 pb-1`}>{dateStr} {s.date === today && <span className="text-blue-600 dark:text-blue-400 ml-2">(HOY)</span>}</h3>}
                    <div className={`rounded-lg p-3 relative transition-all duration-300 ${getStyle(s)} ${opacityClass}`}>
                        <div className={`flex justify-between text-xs font-bold mb-1 ${s.cancelled ? 'text-gray-400 line-through' : 'text-gray-600 dark:text-slate-300'}`}><span>{s.time} hrs</span><span className="bg-gray-100 dark:bg-white/10 px-2 rounded uppercase">{s.location}</span></div>
-                       <h3 className={`font-black text-lg leading-tight ${s.cancelled ? 'text-gray-400 line-through' : 'text-slate-900 dark:text-white'}`}>{s.patientName}</h3>
+                       <h3 className={`font-black text-lg leading-tight ${s.cancelled ? 'text-gray-400 line-through' : 'text-slate-900 dark:text-white'}`}>{applyPrivacy(s.patientName, privacyMode, 'name')}</h3>
                        <p className={`font-bold text-sm mb-2 ${s.cancelled ? 'text-gray-400 line-through' : 'text-blue-700 dark:text-blue-300'}`}>{s.procedure}</p>
                        
                        <div className="flex flex-col gap-1 mt-2">
@@ -111,7 +115,13 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                </React.Fragment>
                );
            })}
-           {filteredList.length === 0 && <p className="text-center text-gray-500 dark:text-slate-500 mt-10">No hay cirugías próximas.</p>}
+           {filteredList.length === 0 && <p className="text-center text-gray-500 dark:text-slate-500 mt-10">No hay cirugías en este periodo.</p>}
+           
+           <div className="text-center mt-6">
+               <button onClick={() => setDaysBack(daysBack + 30)} className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 py-2 px-6 rounded-full hover:opacity-80 transition shadow-sm">
+                   Cargar cirugías anteriores...
+               </button>
+           </div>
        </div>
        <button onClick={()=>{setEditingSurgery(null); setShowModal(true)}} className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl hover:bg-blue-700 transition z-20"><Plus size={28} /></button>
        {showModal && <SurgeryModal onClose={()=>setShowModal(false)} initialData={editingSurgery} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}

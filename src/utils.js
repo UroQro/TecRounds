@@ -61,3 +61,17 @@ export const downloadCSV = (data, headers, filename) => {
   link.click();
   document.body.removeChild(link);
 };
+
+// 🔥 FUNCIÓN DE PRIVACIDAD PROTEGIDA CONTRA CRASHES 🔥
+export const applyPrivacy = (text, isPrivacyMode, type = 'name') => {
+    if (!isPrivacyMode || !text) return text;
+    // Forzamos a String para evitar que tire error si se ingresa un número
+    const strText = String(text); 
+    if (type === 'name') {
+        return strText.split(' ').map(w => w.charAt(0) ? w.charAt(0) + '***' : '').join(' ');
+    }
+    if (type === 'bed') {
+        return '***';
+    }
+    return strText;
+};
