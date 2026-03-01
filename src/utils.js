@@ -62,16 +62,16 @@ export const downloadCSV = (data, headers, filename) => {
   document.body.removeChild(link);
 };
 
-// 🔥 FUNCIÓN DE PRIVACIDAD PROTEGIDA CONTRA CRASHES 🔥
+// 🔥 FUNCIÓN DE PRIVACIDAD ACTUALIZADA (CAMA VISIBLE) 🔥
 export const applyPrivacy = (text, isPrivacyMode, type = 'name') => {
     if (!isPrivacyMode || !text) return text;
-    // Forzamos a String para evitar que tire error si se ingresa un número
     const strText = String(text); 
     if (type === 'name') {
         return strText.split(' ').map(w => w.charAt(0) ? w.charAt(0) + '***' : '').join(' ');
     }
+    // Devolvemos el texto sin censura para las camas
     if (type === 'bed') {
-        return '***';
+        return strText;
     }
     return strText;
 };
