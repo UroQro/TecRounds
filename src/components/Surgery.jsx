@@ -122,7 +122,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
            {filteredList.length === 0 && <p className="text-center text-gray-500 dark:text-slate-500 mt-10">No hay cirugías próximas.</p>}
        </div>
 
-       {/* AQUÍ ESTÁ EL BOTÓN FLOTANTE */}
        <button onClick={handleAdd} className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl hover:bg-blue-700 transition z-20"><Plus size={28} /></button>
 
        {showModal && <SurgeryModal onClose={()=>setShowModal(false)} initialData={editingSurgery} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
