@@ -33,7 +33,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
 
   const handleEdit = (s) => { setEditingSurgery(s); setShowModal(true); };
   
-  // Función para abrir el modal en blanco para crear una NUEVA cirugía
   const handleAdd = () => { setEditingSurgery(null); setShowModal(true); };
 
   const toggleComplete = async (s) => { await updateDoc(doc(db, "surgeries", s.id), { completed: !s.completed }); };
@@ -72,7 +71,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
            <div className="flex justify-between items-center">
                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><Calendar className="text-blue-600 dark:text-blue-400"/> Quirófano</h2>
                <div className="flex gap-2">
-                   {/* AQUÍ ESTÁ EL BOTÓN DE AGREGAR CIRUGÍA QUE FALTABA */}
                    <button onClick={handleAdd} className="bg-blue-600 text-white text-xs px-3 py-1 rounded font-bold shadow flex gap-1 items-center hover:bg-blue-700"><Plus size={14}/> Agregar</button>
                    <button onClick={exportSurgeries} className="bg-green-600 text-white text-xs px-3 py-1 rounded font-bold shadow flex gap-1 items-center hover:bg-green-700"><Download size={14}/> CSV Total</button>
                </div>
@@ -97,7 +95,8 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                        
                        <div className="flex flex-col gap-1 mt-2">
                            <div className={`text-xs flex justify-between items-center ${s.cancelled ? 'text-gray-600' : 'text-gray-500 dark:text-gray-400'}`}>
-                               <span>Tx: {s.doctor}</span>
+                               {/* FIX AQUÍ: PRIVACIDAD EN DOCTOR */}
+                               <span>Tx: {applyPrivacy(s.doctor, privacyMode, 'name')}</span>
                            </div>
                            <div className="flex gap-2">
                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${!s.resident ? 'bg-yellow-100 text-yellow-800' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200'}`}>
