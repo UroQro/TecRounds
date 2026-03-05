@@ -79,7 +79,6 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                      <h3 className="font-extrabold text-lg text-blue-700 dark:text-blue-300 leading-tight mb-1">{applyPrivacy(p.name, privacyMode, 'name')}</h3>
                      <p className="text-xs opacity-75 mb-1 dark:text-slate-300 text-gray-700">{calculateAge(p.dob)} años • {p.diagnosis}</p>
                      
-                     {/* FIX AQUÍ: PRIVACIDAD EN DOCTOR */}
                      <div className="text-xs opacity-75 flex justify-between bg-black/5 dark:bg-white/5 p-1 rounded dark:text-slate-400 text-slate-600"><span>{applyPrivacy(p.doctor, privacyMode, 'name')}</span><span className="font-semibold">{p.resident}</span></div>
                   </div>
                   <div className="flex flex-col items-end justify-between h-full gap-2">

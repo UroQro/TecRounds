@@ -71,7 +71,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
            <div className="flex justify-between items-center">
                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><Calendar className="text-blue-600 dark:text-blue-400"/> Quirófano</h2>
                <div className="flex gap-2">
-                   <button onClick={handleAdd} className="bg-blue-600 text-white text-xs px-3 py-1 rounded font-bold shadow flex gap-1 items-center hover:bg-blue-700"><Plus size={14}/> Agregar</button>
                    <button onClick={exportSurgeries} className="bg-green-600 text-white text-xs px-3 py-1 rounded font-bold shadow flex gap-1 items-center hover:bg-green-700"><Download size={14}/> CSV Total</button>
                </div>
            </div>
@@ -95,7 +94,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                        
                        <div className="flex flex-col gap-1 mt-2">
                            <div className={`text-xs flex justify-between items-center ${s.cancelled ? 'text-gray-600' : 'text-gray-500 dark:text-gray-400'}`}>
-                               {/* FIX AQUÍ: PRIVACIDAD EN DOCTOR */}
                                <span>Tx: {applyPrivacy(s.doctor, privacyMode, 'name')}</span>
                            </div>
                            <div className="flex gap-2">
@@ -123,6 +121,10 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
            })}
            {filteredList.length === 0 && <p className="text-center text-gray-500 dark:text-slate-500 mt-10">No hay cirugías próximas.</p>}
        </div>
+
+       {/* AQUÍ ESTÁ EL BOTÓN FLOTANTE */}
+       <button onClick={handleAdd} className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl hover:bg-blue-700 transition z-20"><Plus size={28} /></button>
+
        {showModal && <SurgeryModal onClose={()=>setShowModal(false)} initialData={editingSurgery} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
     </div>
   );

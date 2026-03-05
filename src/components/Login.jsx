@@ -5,6 +5,7 @@ import { auth } from '../firebase';
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [masterPass, setMasterPass] = useState('');
   const [error, setError] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const FAKE_DOMAIN = "@rounds.app"; 
@@ -12,6 +13,14 @@ export default function Login() {
   const handleAuth = async (e) => {
     e.preventDefault(); setError('');
     const email = username.trim() + FAKE_DOMAIN;
+    
+    if (isRegistering) {
+        if (masterPass !== 'urotec123') {
+            setError('Clave maestra incorrecta.');
+            return;
+        }
+    }
+
     try { 
         if (isRegistering) {
             await createUserWithEmailAndPassword(auth, email, password);
@@ -34,10 +43,18 @@ export default function Login() {
         <form onSubmit={handleAuth} className="space-y-4">
             <div><label className="text-sm font-bold text-slate-600 dark:text-gray-400 block mb-1">Usuario</label><input type="text" value={username} onChange={e=>setUsername(e.target.value)} className={inputClass} placeholder="EJ. ANDRES" required /></div>
             <div><label className="text-sm font-bold text-slate-600 dark:text-gray-400 block mb-1">Contraseña</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} className={inputClass.replace('uppercase','')} required minLength="6" /></div>
+            
+            {isRegistering && (
+                <div>
+                    <label className="text-sm font-bold text-slate-600 dark:text-gray-400 block mb-1">Clave Maestra</label>
+                    <input type="password" value={masterPass} onChange={e=>setMasterPass(e.target.value)} className={inputClass.replace('uppercase','')} placeholder="Requerida para registro" required />
+                </div>
+            )}
+
             <button type="submit" className="w-full bg-blue-600 dark:bg-blue-700 text-white py-3 rounded-lg font-bold hover:opacity-90 transition shadow-lg">{isRegistering ? 'Crear Cuenta' : 'Entrar'}</button>
         </form>
         <div className="mt-5 text-center">
-            <button onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline">
+            <button onClick={() => { setIsRegistering(!isRegistering); setError(''); setMasterPass(''); }} className="text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline">
                 {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : 'Crear un usuario nuevo'}
             </button>
         </div>
