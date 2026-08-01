@@ -46,14 +46,12 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
     return p.status === 'done' ? "bg-white dark:bg-blue-900/30 border-l-[8px] border-blue-600 dark:border-blue-500 shadow-md" : "bg-white dark:bg-slate-800 border-l-[8px] border-red-600 dark:border-red-500 shadow-md";
   };
 
-  // FIX: Filtro robusto para que la descarga nunca falle si hay ligeras variaciones en el nombre
   const exportDOP = () => { 
       const filtered = patients.filter(p => p.doctor && p.doctor.toLowerCase().includes("olvera"));
       if(filtered.length === 0) return alert("No hay pacientes activos del Dr. Olvera para exportar.");
       const data = filtered.map(p => [p.bed, p.name, p.diagnosis, calculateLOS(p.admissionDate)]); 
       downloadCSV(data, ["Cama", "Nombre", "Dx", "Dias"], "Censo_Dr_Olvera.csv"); 
   };
-
   const exportGeneral = () => { const data = patients.map(p => [p.bed, p.type, p.name, p.admissionDate, calculateLOS(p.admissionDate), p.dob, calculateAge(p.dob), p.diagnosis, p.doctor, p.hospital || '']); downloadCSV(data, ["Cuarto", "IC/HO", "Nombre", "Ingreso", "Dias", "Nacimiento", "Edad", "Dx", "Tratante", "Hospital"], "Censo_General.csv"); };
 
   if (selectedPatient) return <PatientDetail patient={selectedPatient} onClose={() => setSelectedPatient(null)} user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />;

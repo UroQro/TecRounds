@@ -15,3 +15,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// 🔥 MÓDULO INTERMEDIO: App secundaria para creación silenciosa de usuarios 🔥
+const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+export const authSecondary = getAuth(secondaryApp);

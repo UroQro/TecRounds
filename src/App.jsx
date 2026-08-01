@@ -40,7 +40,6 @@ export default function App() {
       const unsub = onSnapshot(doc(db, 'metadata', 'settings'), (docSnap) => {
           if (docSnap.exists()) {
               const data = docSnap.data();
-              // FIX: Se usa el Spread Operator [...] para asegurar que React detecte la actualización de las listas
               setDynamicResidents(data.residents ? [...data.residents].sort() : DEFAULT_RESIDENTS);
               setDynamicDoctors(data.doctors ? [...data.doctors].sort() : DOCTORS);
               setDynamicLocations(data.locations ? [...data.locations].sort() : LOCATIONS);
@@ -141,7 +140,7 @@ export default function App() {
         {view === 'discharges' && <Discharges privacyMode={privacyMode} />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v71.0</span>
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v72.0</span>
         <button onClick={() => setShowAdmin(true)} className="opacity-20 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
       </footer>
     </div>
