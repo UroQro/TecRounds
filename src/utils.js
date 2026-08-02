@@ -42,7 +42,6 @@ export const getLocalISODate = () => {
     return (new Date(d - offset)).toISOString().slice(0, 10);
 };
 
-// 🔥 NUEVA DESCARGA HÍBRIDA (MOBILE SHARE + DESKTOP DOWNLOAD) 🔥
 export const downloadCSV = async (data, headers, filename) => {
   const clean = (str) => {
       if (typeof str !== 'string') return str;
@@ -56,7 +55,6 @@ export const downloadCSV = async (data, headers, filename) => {
 
   const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' }); 
   
-  // 1. Detección de celular (Web Share API)
   if (navigator.share && navigator.canShare) {
       const file = new File([blob], filename, { type: 'text/csv' });
       if (navigator.canShare({ files: [file] })) {
@@ -65,15 +63,13 @@ export const downloadCSV = async (data, headers, filename) => {
                   files: [file],
                   title: 'Documento UroTec',
               });
-              return; // Si el usuario lo compartió exitosamente, cortamos la función aquí.
+              return; 
           } catch (err) {
               console.log("El usuario cerró la ventana de compartir o hubo un error:", err);
-              // Si falla o cancela, dejamos que continúe a la descarga tradicional (Fallback)
           }
       }
   }
 
-  // 2. Descarga Tradicional (Computadoras o si falla el share)
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

@@ -46,12 +46,40 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
     return p.status === 'done' ? "bg-white dark:bg-blue-900/30 border-l-[8px] border-blue-600 dark:border-blue-500 shadow-md" : "bg-white dark:bg-slate-800 border-l-[8px] border-red-600 dark:border-red-500 shadow-md";
   };
 
+  // 🔥 GENERADOR DE MENSAJE WHATSAPP 🔥
+  const shareDOPMessage = async () => { 
+      const filtered = patients.filter(p => p.doctor && p.doctor.toLowerCase().includes("olvera"));
+      if(filtered.length === 0) return alert("No hay pacientes activos del Dr. Olvera para compartir.");
+
+      const todayStr = new Date().toLocaleDateString('es-MX', {day: '2-digit', month: '2-digit', year: 'numeric'});
+      let text = `🏥 *Censo Dr. Olvera*\n📅 ${todayStr}\n👥 Total: ${filtered.length} paciente(s)\n\n`;
+
+      filtered.forEach(p => {
+          text += `🛏️ *Cama ${applyPrivacy(p.bed, privacyMode, 'bed')}* | ⏳ ${calculateLOS(p.admissionDate)} días\n`;
+          text += `👤 *${applyPrivacy(p.name, privacyMode, 'name')}*\n`;
+          text += `🩺 Dx: ${p.diagnosis}\n\n`;
+      });
+
+      if (navigator.share && navigator.canShare) {
+          try {
+              await navigator.share({ text: text });
+          } catch(err) {
+              navigator.clipboard.writeText(text);
+              alert("Copiado al portapapeles para pegar en WhatsApp.");
+          }
+      } else {
+          navigator.clipboard.writeText(text);
+          alert("Copiado al portapapeles para pegar en WhatsApp.");
+      }
+  };
+
   const exportDOP = () => { 
       const filtered = patients.filter(p => p.doctor && p.doctor.toLowerCase().includes("olvera"));
       if(filtered.length === 0) return alert("No hay pacientes activos del Dr. Olvera para exportar.");
       const data = filtered.map(p => [p.bed, p.name, p.diagnosis, calculateLOS(p.admissionDate)]); 
       downloadCSV(data, ["Cama", "Nombre", "Dx", "Dias"], "Censo_Dr_Olvera.csv"); 
   };
+  
   const exportGeneral = () => { const data = patients.map(p => [p.bed, p.type, p.name, p.admissionDate, calculateLOS(p.admissionDate), p.dob, calculateAge(p.dob), p.diagnosis, p.doctor, p.hospital || '']); downloadCSV(data, ["Cuarto", "IC/HO", "Nombre", "Ingreso", "Dias", "Nacimiento", "Edad", "Dx", "Tratante", "Hospital"], "Censo_General.csv"); };
 
   if (selectedPatient) return <PatientDetail patient={selectedPatient} onClose={() => setSelectedPatient(null)} user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />;
@@ -69,7 +97,11 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
              <select className="flex-1 p-2 border rounded text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={filterDoc} onChange={e=>setFilterDoc(e.target.value)}><option value="">Todos los Tratantes</option>{dynamicDoctors.map(d => <option key={d}>{d}</option>)}<option value="Otro">Otro...</option></select>
              <select className="flex-1 p-2 border rounded text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={filterRes} onChange={e=>setFilterRes(e.target.value)}><option value="">Todos los Residentes</option>{dynamicResidents.map(r => <option key={r}>{r}</option>)}</select>
          </div>
-         <div className="flex gap-2"><button onClick={exportDOP} className="flex-1 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200 rounded text-xs font-bold border border-blue-200 dark:border-blue-700">CSV DOP</button><button onClick={exportGeneral} className="flex-1 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-200 rounded text-xs font-bold border border-green-200 dark:border-green-700">CSV General</button></div>
+         <div className="flex gap-2">
+             <button onClick={shareDOPMessage} className="flex-1 py-2 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-200 rounded text-xs font-bold border border-green-200 dark:border-green-700 transition active:scale-95">📱 WhatsApp DOP</button>
+             <button onClick={exportDOP} className="flex-1 py-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200 rounded text-xs font-bold border border-blue-200 dark:border-blue-700 transition active:scale-95">📊 CSV DOP</button>
+             <button onClick={exportGeneral} className="flex-1 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded text-xs font-bold border border-gray-300 dark:border-gray-600 transition active:scale-95">📊 CSV Total</button>
+         </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
          {sortedPatients.filter(p => !filterDoc || p.doctor === filterDoc || (filterDoc === 'Otro' && !dynamicDoctors.includes(p.doctor))).filter(p => !filterRes || p.resident === filterRes).map(p => (
