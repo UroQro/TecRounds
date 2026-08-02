@@ -15,7 +15,6 @@ export default function AdminPanel({ onClose }) {
     const [doctors, setDoctors] = useState([]);
     const [locations, setLocations] = useState([]);
     
-    // Estados para la gestión de accesos
     const [knownUsers, setKnownUsers] = useState([]);
     const [bannedUsers, setBannedUsers] = useState([]);
     const [newUserEmail, setNewUserEmail] = useState('');
@@ -98,7 +97,6 @@ export default function AdminPanel({ onClose }) {
         }
     };
 
-    // 🔥 GESTIÓN DE ACCESOS: Crear usuario con App Secundaria 🔥
     const handleCreateUser = async (e) => {
         e.preventDefault();
         if(!newUserEmail || !newUserPass) return;
@@ -113,7 +111,6 @@ export default function AdminPanel({ onClose }) {
         }
     };
 
-    // 🔥 GESTIÓN DE ACCESOS: Bloquear y Desbloquear 🔥
     const toggleBanStatus = async (email, isBanned) => {
         try {
             if (isBanned) {
@@ -163,7 +160,6 @@ export default function AdminPanel({ onClose }) {
 
                 {msg.text && <div className={`p-3 rounded mb-6 font-bold text-sm shadow-sm ${msg.type==='error'?'bg-red-100 text-red-700 border-l-4 border-red-500':'bg-green-100 text-green-700 border-l-4 border-green-500'}`}>{msg.text}</div>}
 
-                {/* NAVEGACIÓN */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
                     <button onClick={()=>setActiveTab('residentes')} className={`py-3 font-bold rounded shadow flex justify-center items-center gap-2 transition ${activeTab==='residentes'?'bg-blue-600 text-white':'bg-white dark:bg-slate-800 text-gray-500 hover:bg-gray-50'}`}><User size={16}/> Dropdowns</button>
                     <button onClick={()=>setActiveTab('doctores')} className={`py-3 font-bold rounded shadow flex justify-center items-center gap-2 transition ${activeTab==='doctores'?'bg-blue-600 text-white':'bg-white dark:bg-slate-800 text-gray-500 hover:bg-gray-50'}`}><Stethoscope size={16}/> Doctores</button>
@@ -171,7 +167,6 @@ export default function AdminPanel({ onClose }) {
                     <button onClick={()=>setActiveTab('usuarios')} className={`py-3 font-bold rounded shadow flex justify-center items-center gap-2 transition ${activeTab==='usuarios'?'bg-red-600 text-white border-b-4 border-red-800':'bg-white dark:bg-slate-800 text-gray-500 hover:bg-gray-50'}`}><Users size={16}/> Accesos</button>
                 </div>
 
-                {/* PESTAÑA: USUARIOS / GESTIÓN DE ACCESOS */}
                 {activeTab === 'usuarios' && (
                     <div className="space-y-6">
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow border dark:border-slate-700">
@@ -218,7 +213,6 @@ export default function AdminPanel({ onClose }) {
                     </div>
                 )}
 
-                {/* PESTAÑAS ORIGINALES (Dropdowns) */}
                 {activeTab !== 'usuarios' && (
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow border dark:border-slate-700">
                         <div className="flex justify-between items-start mb-4">

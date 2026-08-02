@@ -42,24 +42,47 @@ export const getLocalISODate = () => {
     return (new Date(d - offset)).toISOString().slice(0, 10);
 };
 
-export const downloadCSV = (data, headers, filename) => {
+// 🔥 NUEVA DESCARGA HÍBRIDA (MOBILE SHARE + DESKTOP DOWNLOAD) 🔥
+export const downloadCSV = async (data, headers, filename) => {
   const clean = (str) => {
       if (typeof str !== 'string') return str;
       return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   };
-  const csvContent = "data:text/csv;charset=utf-8," 
-    + [
-        headers.map(clean).join(","), 
-        ...data.map(row => row.map(cell => clean(String(cell || ''))).join(","))
-      ].join("\n");
+  
+  const csvContent = [
+      headers.map(clean).join(","), 
+      ...data.map(row => row.map(cell => `"${clean(String(cell || '')).replace(/"/g, '""')}"`).join(","))
+  ].join("\n");
 
-  const encodedUri = encodeURI(csvContent);
+  const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' }); 
+  
+  // 1. Detección de celular (Web Share API)
+  if (navigator.share && navigator.canShare) {
+      const file = new File([blob], filename, { type: 'text/csv' });
+      if (navigator.canShare({ files: [file] })) {
+          try {
+              await navigator.share({
+                  files: [file],
+                  title: 'Documento UroTec',
+              });
+              return; // Si el usuario lo compartió exitosamente, cortamos la función aquí.
+          } catch (err) {
+              console.log("El usuario cerró la ventana de compartir o hubo un error:", err);
+              // Si falla o cancela, dejamos que continúe a la descarga tradicional (Fallback)
+          }
+      }
+  }
+
+  // 2. Descarga Tradicional (Computadoras o si falla el share)
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
+  link.href = url;
   link.setAttribute("download", filename);
+  link.style.display = "none";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 };
 
 export const applyPrivacy = (text, isPrivacyMode, type = 'name') => {
