@@ -163,7 +163,7 @@ export default function AdminPanel({ onClose }) {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
                     <button onClick={()=>setActiveTab('residentes')} className={`py-3 font-bold rounded shadow flex justify-center items-center gap-2 transition ${activeTab==='residentes'?'bg-blue-600 text-white':'bg-white dark:bg-slate-800 text-gray-500 hover:bg-gray-50'}`}><User size={16}/> Dropdowns</button>
                     <button onClick={()=>setActiveTab('doctores')} className={`py-3 font-bold rounded shadow flex justify-center items-center gap-2 transition ${activeTab==='doctores'?'bg-blue-600 text-white':'bg-white dark:bg-slate-800 text-gray-500 hover:bg-gray-50'}`}><Stethoscope size={16}/> Doctores</button>
-                    <button onClick={()=>setActiveTab('hospitales')} className={`py-3 font-bold rounded shadow flex justify-center items-center gap-2 transition ${activeTab==='hospitales'?'bg-blue-600 text-white':'bg-white dark:bg-slate-800 text-gray-500 hover:bg-gray-50'}`}><Building2 size={16}/> Hospitales</button>
+                    <button onClick={()=>setActiveTab('hospitales')} className={`py-3 font-bold rounded shadow flex justify-center items-center gap-2 transition ${activeTab==='hospitales'?'bg-blue-600 text-white':'bg-white dark:bg-slate-800 text-gray-500 hover:bg-gray-50'}`}><Building2 size={18}/> Hospitales</button>
                     <button onClick={()=>setActiveTab('usuarios')} className={`py-3 font-bold rounded shadow flex justify-center items-center gap-2 transition ${activeTab==='usuarios'?'bg-red-600 text-white border-b-4 border-red-800':'bg-white dark:bg-slate-800 text-gray-500 hover:bg-gray-50'}`}><Users size={16}/> Accesos</button>
                 </div>
 
