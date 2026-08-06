@@ -1,3 +1,48 @@
-@tailwind base; @tailwind components; @tailwind utilities; input, select, textarea { font-size: 16px; } .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); } .pt-safe { padding-top: max(12px, env(safe-area-inset-top)); } 
-/* 🔥 FILTRO E-INK 🔥 */
-.e-ink-mode { filter: grayscale(100%) contrast(125%) sepia(20%); }
+@tailwind base; @tailwind components; @tailwind utilities; 
+input, select, textarea { font-size: 16px; } 
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); } 
+.pt-safe { padding-top: max(12px, env(safe-area-inset-top)); } 
+
+/* 🔥 E-INK MINIMALISTA: APLANA TODA LA INTERFAZ 🔥 */
+.e-ink-mode { 
+  filter: grayscale(100%) contrast(120%); 
+}
+.e-ink-mode * { 
+  box-shadow: none !important; 
+}
+.e-ink-mode .bg-white,
+.e-ink-mode .dark\:bg-slate-800,
+.e-ink-mode .bg-gray-50,
+.e-ink-mode .dark\:bg-slate-700,
+.e-ink-mode .bg-gray-100,
+.e-ink-mode .dark\:bg-slate-900,
+.e-ink-mode .bg-gray-200 {
+  background-color: transparent !important;
+  border-color: #999999 !important;
+}
+.dark .e-ink-mode .bg-white,
+.dark .e-ink-mode .dark\:bg-slate-800,
+.dark .e-ink-mode .bg-gray-50,
+.dark .e-ink-mode .dark\:bg-slate-700,
+.dark .e-ink-mode .bg-gray-100,
+.dark .e-ink-mode .dark\:bg-slate-900,
+.dark .e-ink-mode .bg-gray-200 {
+  border-color: #444444 !important;
+}
+/* Convertir bordes gruesos de estado en lineas delgadas */
+.e-ink-mode .border-l-\[8px\] { border-left-width: 1px !important; }
+
+/* Hacer Badges transparentes y punteados */
+.e-ink-mode [class*="bg-blue-100"],
+.e-ink-mode [class*="bg-green-100"],
+.e-ink-mode [class*="bg-red-100"],
+.e-ink-mode [class*="bg-yellow-100"],
+.e-ink-mode [class*="bg-purple-100"],
+.e-ink-mode [class*="bg-orange-100"],
+.e-ink-mode [class*="bg-indigo-100"] {
+  background-color: transparent !important;
+  border: 1px dotted currentColor !important;
+}
+
+/* Oscurecer un poco el Header principal */
+.e-ink-mode header.bg-black { background-color: #222 !important; border-bottom: 1px solid #000; }
