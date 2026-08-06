@@ -17,7 +17,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false); 
-  const [readerMode, setReaderMode] = useState(false);
+  const [readerMode, setReaderMode] = useState(false); 
 
   const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
   const [dynamicDoctors, setDynamicDoctors] = useState(DOCTORS);
@@ -112,42 +112,55 @@ export default function App() {
   if (!user) return <Login />;
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-500 relative ${readerMode ? 'e-ink-mode font-serif bg-[#f4f1ea] text-black dark:bg-[#222] dark:text-gray-300' : 'font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100'}`}>
-      
-      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+    <>
+      {/* 🔥 OVERLAY E-INK: Pinta la pantalla sin romper la estructura DOM 🔥 */}
+      {readerMode && (
+          <div 
+             className="fixed inset-0 pointer-events-none z-[99999]" 
+             style={{ 
+                 backdropFilter: 'grayscale(100%) contrast(110%) sepia(15%)', 
+                 WebkitBackdropFilter: 'grayscale(100%) contrast(110%) sepia(15%)' 
+             }}
+          />
+      )}
 
-      <header className="bg-black text-white p-3 shadow-md sticky top-0 z-40 pt-safe">
-        <div className="max-w-5xl mx-auto">
-            <div className="flex justify-between items-center mb-2">
-                <h1 className="text-lg font-bold">Urología TecSalud</h1>
-                <div className="text-xs flex items-center font-mono bg-gray-800 p-1 rounded">
-                    <button onClick={()=>setReaderMode(!readerMode)} className={`p-1 rounded transition mr-1 ${readerMode?'text-amber-500 bg-amber-900/30':'text-gray-400 hover:text-white'}`} title="Modo Lectura (Kindle)">
-                        <BookOpen size={16}/>
-                    </button>
-                    <button onClick={()=>setPrivacyMode(!privacyMode)} className={`p-1 rounded transition ${privacyMode?'text-red-400 bg-red-900/30':'text-gray-400 hover:text-white'}`} title="Modo Privacidad">
-                        {privacyMode ? <EyeOff size={16}/> : <Eye size={16}/>}
-                    </button>
-                    <span className="uppercase text-gray-300 mx-2 border-l border-gray-600 pl-2">{getUserName()}</span>
-                    <button onClick={handleLogout} className="text-gray-400 hover:text-white p-1"><LogOut size={14}/></button>
-                </div>
-            </div>
-            <nav className="flex space-x-2 overflow-x-auto pb-1">
-                <NavBtn active={view==='census'} onClick={()=>setView('census')} label="Censo" icon={<ClipboardList size={16}/>} />
-                <NavBtn active={view==='or'} onClick={()=>setView('or')} label="Quirófano" icon={<Scissors size={16}/>} />
-                <NavBtn active={view==='discharges'} onClick={()=>setView('discharges')} label="Egresos" icon={<Archive size={16}/>} />
-            </nav>
-        </div>
-      </header>
-      <main className="flex-1 p-2 max-w-5xl mx-auto w-full pb-safe">
-        {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
-        {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
-        {view === 'discharges' && <Discharges privacyMode={privacyMode} />}
-      </main>
-      <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v76.0 Minimalist</span>
-        <button onClick={() => setShowAdmin(true)} className="opacity-20 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
-      </footer>
-    </div>
+      <div className={`min-h-screen flex flex-col transition-colors duration-500 relative ${readerMode ? 'e-ink-active bg-[#f4f1ea] text-slate-900 dark:bg-[#222] dark:text-gray-300' : 'font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100'}`}>
+        
+        {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+
+        <header className="bg-black text-white p-3 shadow-md sticky top-0 z-40 pt-safe">
+          <div className="max-w-5xl mx-auto">
+              <div className="flex justify-between items-center mb-2">
+                  <h1 className="text-lg font-bold">Urología TecSalud</h1>
+                  <div className="text-xs flex items-center font-mono bg-gray-800 p-1 rounded">
+                      <button onClick={()=>setReaderMode(!readerMode)} className={`p-1 rounded transition mr-1 ${readerMode?'text-amber-500 bg-amber-900/30':'text-gray-400 hover:text-white'}`} title="Modo Lectura (Kindle)">
+                          <BookOpen size={16}/>
+                      </button>
+                      <button onClick={()=>setPrivacyMode(!privacyMode)} className={`p-1 rounded transition ${privacyMode?'text-red-400 bg-red-900/30':'text-gray-400 hover:text-white'}`} title="Modo Privacidad">
+                          {privacyMode ? <EyeOff size={16}/> : <Eye size={16}/>}
+                      </button>
+                      <span className="uppercase text-gray-300 mx-2 border-l border-gray-600 pl-2">{getUserName()}</span>
+                      <button onClick={handleLogout} className="text-gray-400 hover:text-white p-1"><LogOut size={14}/></button>
+                  </div>
+              </div>
+              <nav className="flex space-x-2 overflow-x-auto pb-1">
+                  <NavBtn active={view==='census'} onClick={()=>setView('census')} label="Censo" icon={<ClipboardList size={16}/>} />
+                  <NavBtn active={view==='or'} onClick={()=>setView('or')} label="Quirófano" icon={<Scissors size={16}/>} />
+                  <NavBtn active={view==='discharges'} onClick={()=>setView('discharges')} label="Egresos" icon={<Archive size={16}/>} />
+              </nav>
+          </div>
+        </header>
+        <main className="flex-1 p-2 max-w-5xl mx-auto w-full pb-safe">
+          {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
+          {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
+          {view === 'discharges' && <Discharges privacyMode={privacyMode} />}
+        </main>
+        <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
+          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v77.0 E-Ink Fix</span>
+          <button onClick={() => setShowAdmin(true)} className="opacity-20 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
+        </footer>
+      </div>
+    </>
   );
 }
 const NavBtn = ({ active, onClick, label, icon }) => (<button onClick={onClick} className={`flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${active ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>{icon} {label}</button>);
