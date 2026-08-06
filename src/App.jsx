@@ -7,7 +7,7 @@ import Census from './components/Census';
 import Surgery from './components/Surgery';
 import Discharges from './components/Discharges';
 import AdminPanel from './components/AdminPanel';
-import { LogOut, ClipboardList, Archive, Scissors, Lock, Eye, EyeOff } from 'lucide-react';
+import { LogOut, ClipboardList, Archive, Scissors, Lock, Eye, EyeOff, BookOpen } from 'lucide-react';
 import { getLocalISODate } from './utils';
 import { DEFAULT_RESIDENTS, DOCTORS, LOCATIONS } from './constants';
 
@@ -17,6 +17,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false); 
+  const [readerMode, setReaderMode] = useState(false); // 🔥 ESTADO DEL E-INK 🔥
 
   const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
   const [dynamicDoctors, setDynamicDoctors] = useState(DOCTORS);
@@ -110,8 +111,9 @@ export default function App() {
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900 dark:text-white">Cargando...</div>;
   if (!user) return <Login />;
 
+  // 🔥 AQUÍ SE APLICA EL EFECTO E-INK AL CONTENEDOR PRINCIPAL 🔥
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-500 relative">
+    <div className={`min-h-screen flex flex-col transition-colors duration-500 relative ${readerMode ? 'e-ink-mode font-serif bg-[#f4f1ea] text-black dark:bg-[#222] dark:text-gray-300' : 'font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100'}`}>
       
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
 
@@ -120,9 +122,17 @@ export default function App() {
             <div className="flex justify-between items-center mb-2">
                 <h1 className="text-lg font-bold">Urología TecSalud</h1>
                 <div className="text-xs flex items-center font-mono bg-gray-800 p-1 rounded">
+                    
+                    {/* 🔥 BOTÓN E-INK 🔥 */}
+                    <button onClick={()=>setReaderMode(!readerMode)} className={`p-1 rounded transition mr-1 ${readerMode?'text-amber-700 bg-amber-100':'text-gray-400 hover:text-white'}`} title="Modo Lectura (Kindle)">
+                        <BookOpen size={16}/>
+                    </button>
+                    
+                    {/* BOTÓN PRIVACIDAD */}
                     <button onClick={()=>setPrivacyMode(!privacyMode)} className={`p-1 rounded transition ${privacyMode?'text-red-400 bg-red-900/30':'text-gray-400 hover:text-white'}`} title="Modo Privacidad">
                         {privacyMode ? <EyeOff size={16}/> : <Eye size={16}/>}
                     </button>
+                    
                     <span className="uppercase text-gray-300 mx-2 border-l border-gray-600 pl-2">{getUserName()}</span>
                     <button onClick={handleLogout} className="text-gray-400 hover:text-white p-1"><LogOut size={14}/></button>
                 </div>
@@ -140,7 +150,7 @@ export default function App() {
         {view === 'discharges' && <Discharges privacyMode={privacyMode} />}
       </main>
       <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v74.2</span>
+        <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v75.0 E-Ink</span>
         <button onClick={() => setShowAdmin(true)} className="opacity-20 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
       </footer>
     </div>

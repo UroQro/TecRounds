@@ -59,9 +59,7 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
 
   const today = getLocalISODate();
   let lastDate = null;
-  
   const filteredList = surgeries.filter(s => { 
-      // 🔥 FIX: Oculta las cirugías pasadas en la vista principal 🔥
       if (s.date < today) return false; 
       
       if(!filterRes) return true; 
