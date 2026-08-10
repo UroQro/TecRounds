@@ -8,7 +8,7 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
   const [surgeries, setSurgeries] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingSurgery, setEditingSurgery] = useState(null);
-  const [transferringSurgery, setTransferringSurgery] = useState(null); // 🔥 ESTADO PARA PASAR A CENSO
+  const [transferringSurgery, setTransferringSurgery] = useState(null); 
   const [filterRes, setFilterRes] = useState('');
   
   const [daysBack, setDaysBack] = useState(15); 
@@ -107,7 +107,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                        </div>
 
                        <div className="flex justify-end gap-3 mt-3 border-t border-gray-100 dark:border-white/10 pt-2">
-                           {/* 🔥 BOTÓN PARA PASAR A CENSO 🔥 */}
                            {!s.cancelled && (
                                <button onClick={()=>setTransferringSurgery(s)} className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mr-auto" title="Hospitalizar Paciente">
                                    <UserPlus size={18}/>
@@ -136,7 +135,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
        
        {showModal && <SurgeryModal onClose={()=>setShowModal(false)} initialData={editingSurgery} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
        
-       {/* 🔥 MODAL DE TRASPASO A CENSO 🔥 */}
        {transferringSurgery && <TransferToCensusModal surgery={transferringSurgery} onClose={()=>setTransferringSurgery(null)} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
     </div>
   );
@@ -195,7 +193,6 @@ function SurgeryModal({ onClose, initialData, dynamicResidents, dynamicDoctors, 
     );
 }
 
-// 🔥 NUEVO COMPONENTE: TRASPASO A CENSO 🔥
 function TransferToCensusModal({ onClose, surgery, dynamicResidents, dynamicDoctors, dynamicLocations }) {
   const [form, setForm] = useState({ 
       name: surgery.patientName || '', bed: '', hospital: surgery.location || 'HZH', type: 'HO', doctor: surgery.doctor || '', resident: surgery.resident || '', admissionDate: getLocalISODate(), dob: '', diagnosis: `Post-op ${surgery.procedure || ''}`,
@@ -227,8 +224,6 @@ function TransferToCensusModal({ onClose, surgery, dynamicResidents, dynamicDoct
       e.preventDefault();
       try {
           await addDoc(collection(db, "patients"), { ...form, status: 'pending', hasPending: false, discharged: false, notes: [], checklist: [] });
-          // Opcional: Podrías marcar la cirugía como completada aquí si quisieras: 
-          // await updateDoc(doc(db, "surgeries", surgery.id), { completed: true });
           alert(`¡${form.name} ha sido ingresado al censo!`);
           onClose();
       } catch (err) { alert("Error: " + err.message); }

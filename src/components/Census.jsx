@@ -92,9 +92,14 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
   return (
     <div className="pb-24">
       <div className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-md border border-blue-100 dark:border-slate-700 mb-3 sticky top-0 z-10 transition-colors">
-         <div className="flex gap-2">
+         <div className="flex gap-2 mb-2">
              <select className="flex-1 p-2 border rounded text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={filterDoc} onChange={e=>setFilterDoc(e.target.value)}><option value="">Todos los Tratantes</option>{dynamicDoctors.map(d => <option key={d}>{d}</option>)}<option value="Otro">Otro...</option></select>
              <select className="flex-1 p-2 border rounded text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={filterRes} onChange={e=>setFilterRes(e.target.value)}><option value="">Todos los Residentes</option>{dynamicResidents.map(r => <option key={r}>{r}</option>)}</select>
+         </div>
+         <div className="flex gap-2">
+             <button onClick={shareDOPMessage} className="flex-1 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-200 rounded text-xs font-bold border border-green-200 dark:border-green-700 transition active:scale-95">📱 WA DOP</button>
+             <button onClick={exportDOP} className="flex-1 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200 rounded text-xs font-bold border border-blue-200 dark:border-blue-700 transition active:scale-95">📊 CSV DOP</button>
+             <button onClick={exportGeneral} className="flex-1 py-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded text-xs font-bold border border-gray-300 dark:border-gray-600 transition active:scale-95">📊 CSV Total</button>
          </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
@@ -120,13 +125,6 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
             </div>
          ))}
       </div>
-      
-      <div className="flex gap-2 mt-6">
-          <button onClick={shareDOPMessage} className="flex-1 py-3 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-200 rounded-lg text-xs font-bold border border-green-200 dark:border-green-700 transition active:scale-95 shadow-sm">📱 WA DOP</button>
-          <button onClick={exportDOP} className="flex-1 py-3 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200 rounded-lg text-xs font-bold border border-blue-200 dark:border-blue-700 transition active:scale-95 shadow-sm">📊 CSV DOP</button>
-          <button onClick={exportGeneral} className="flex-1 py-3 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-bold border border-gray-300 dark:border-gray-600 transition active:scale-95 shadow-sm">📊 CSV Total</button>
-      </div>
-
       <button onClick={() => setShowAddModal(true)} className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl hover:bg-blue-700 transition z-20"><Plus size={28} /></button>
       {showAddModal && <PatientFormModal onClose={() => setShowAddModal(false)} mode="create" dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
     </div>
