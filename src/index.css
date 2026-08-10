@@ -1,15 +1,1 @@
-@tailwind base; @tailwind components; @tailwind utilities; 
-input, select, textarea { font-size: 16px; } 
-.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); } 
-.pt-safe { padding-top: max(12px, env(safe-area-inset-top)); } 
-
-/* 🔥 E-INK MINIMALISTA: APLANA BORDES SIN ROMPER EL DOM 🔥 */
-.e-ink-active {
-    font-family: Georgia, serif !important;
-}
-.e-ink-active * {
-    box-shadow: none !important;
-}
-.e-ink-active .border-l-\[8px\] {
-    border-left-width: 2px !important;
-}
+@tailwind base; @tailwind components; @tailwind utilities; input, select, textarea { font-size: 16px; } .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); } .pt-safe { padding-top: max(12px, env(safe-area-inset-top)); } .e-ink-active { font-family: Georgia, serif !important; } .e-ink-active * { box-shadow: none !important; } .e-ink-active .border-l-\[8px\] { border-left-width: 2px !important; }
