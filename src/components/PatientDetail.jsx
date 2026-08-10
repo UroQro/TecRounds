@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { doc, updateDoc, arrayUnion, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, arrayUnion, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate, applyPrivacy } from '../utils';
-import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive, Scissors } from 'lucide-react';
 import PatientFormModal from './PatientFormModal';
 
 export default function PatientDetail({ patient: initialPatient, onClose, user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
   const [patient, setPatient] = useState(initialPatient);
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
+  const [showSurgeryModal, setShowSurgeryModal] = useState(false); // 🔥 NUEVO ESTADO PARA EL MODAL DE CIRUGÍA
   const [editingNote, setEditingNote] = useState(null);
 
   const [visitForm, setVisitForm] = useState({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
@@ -155,8 +156,14 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
                   {bmi && <span className="bg-white dark:bg-slate-700 px-1 rounded font-bold text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-slate-600">IMC: {bmi}</span>}
               </div>
           </div>
-          <button onClick={togglePreDischarge} className={`p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 ${patient.preDischarge ? 'bg-purple-600 text-white' : 'bg-white dark:bg-slate-700 text-gray-400'}`}><Briefcase size={16}/></button>
-          <button onClick={()=>setShowEdit(true)} className="p-2 bg-white dark:bg-slate-700 rounded-full shadow text-blue-600 dark:text-blue-400"><Edit size={16}/></button>
+          
+          {/* 🔥 AQUÍ ESTÁ EL BOTÓN DE LA TIJERITA AÑADIDO 🔥 */}
+          <button onClick={() => setShowSurgeryModal(true)} className={`p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-orange-500 hover:bg-orange-50 dark:hover:bg-slate-600 mr-1`} title="Programar Cirugía">
+              <Scissors size={16}/>
+          </button>
+          
+          <button onClick={togglePreDischarge} className={`p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 ${patient.preDischarge ? 'bg-purple-600 text-white' : 'bg-white dark:bg-slate-700 text-gray-400'} mr-1`} title="Pre-alta"><Briefcase size={16}/></button>
+          <button onClick={()=>setShowEdit(true)} className="p-2 bg-white dark:bg-slate-700 rounded-full shadow text-blue-600 dark:text-blue-400" title="Editar paciente"><Edit size={16}/></button>
       </div>
 
       <div className="p-3 space-y-4 bg-gray-50 dark:bg-slate-900 min-h-screen">
@@ -322,7 +329,84 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
               ))}
           </div>
       </div>
+      
       {showEdit && <PatientFormModal onClose={() => {setShowEdit(false); onClose();}} mode="edit" initialData={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
+      
+      {/* 🔥 MODAL DE PROGRAMAR CIRUGÍA DESDE EL CENSO 🔥 */}
+      {showSurgeryModal && <ScheduleSurgeryModal onClose={() => setShowSurgeryModal(false)} patient={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
     </div>
   );
+}
+
+// 🔥 COMPONENTE NUEVO: MODAL PARA AGENDAR DESDE EL DETALLE DEL PACIENTE 🔥
+function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDoctors, dynamicLocations }) {
+    const [form, setForm] = useState({ 
+        date: getLocalISODate(), 
+        time: '', 
+        patientName: patient.name || '', 
+        procedure: '', 
+        location: patient.hospital || '', 
+        doctor: patient.doctor || '', 
+        resident: patient.resident || '', 
+        resident2: '', 
+        completed: false, 
+        cancelled: false 
+    });
+    
+    const [isOtherDoc, setIsOtherDoc] = useState(false);
+    const [isOtherRes, setIsOtherRes] = useState(false);
+    
+    const resOptions = [...(dynamicResidents || [])];
+    if (form.resident && !resOptions.includes(form.resident) && form.resident !== 'Otro') resOptions.push(form.resident);
+    resOptions.sort();
+
+    const docOptions = [...(dynamicDoctors || [])];
+    if (form.doctor && !docOptions.includes(form.doctor) && form.doctor !== 'Otro') docOptions.push(form.doctor);
+    docOptions.sort();
+
+    const locOptions = [...(dynamicLocations || [])];
+    if (form.location && !locOptions.includes(form.location) && form.location !== 'Otro') locOptions.push(form.location);
+    locOptions.sort();
+
+    useEffect(() => {
+        if(form.doctor && !dynamicDoctors?.includes(form.doctor)) setIsOtherDoc(true);
+        if(form.resident && !dynamicResidents?.includes(form.resident)) setIsOtherRes(true);
+    }, []);
+
+    const handleSubmit = async (e) => { 
+        e.preventDefault(); 
+        try { 
+            await addDoc(collection(db, "surgeries"), form); 
+            alert(`¡Cirugía programada para ${form.patientName}!`);
+            onClose(); 
+        } catch(err) { 
+            alert(err.message); 
+        } 
+    };
+    
+    const inputClass = "w-full p-2 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white bg-white dark:bg-slate-700";
+
+    return (
+      <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto text-slate-900 dark:text-white">
+              <h2 className="text-xl font-bold mb-1 text-slate-800 dark:text-white">Programar Cirugía</h2>
+              <p className="text-xs text-orange-600 dark:text-orange-400 mb-4 font-bold bg-orange-50 dark:bg-orange-900/30 p-2 rounded">Datos copiados desde Censo</p>
+              
+              <form onSubmit={handleSubmit} className="space-y-3">
+                  <div className="flex gap-2"><input type="date" required className={`flex-1 ${inputClass}`} value={form.date} onChange={e=>setForm({...form, date:e.target.value})} /><input type="time" required className={`flex-1 ${inputClass}`} value={form.time} onChange={e=>setForm({...form, time:e.target.value})} /></div>
+                  <select required className={inputClass} value={form.location} onChange={e=>setForm({...form, location:e.target.value})}><option value="">Sede...</option>{locOptions.map(l=><option key={l} value={l}>{l}</option>)}</select>
+                  <input required placeholder="Paciente" className={inputClass} value={form.patientName} onChange={e=>setForm({...form, patientName:e.target.value})} />
+                  <input required placeholder="Procedimiento" className={inputClass} value={form.procedure} onChange={e=>setForm({...form, procedure:e.target.value})} />
+                  
+                  <div className="space-y-1"><select required={!isOtherDoc} className={`text-xs ${inputClass}`} value={isOtherDoc ? 'Otro' : form.doctor} onChange={e=>{ if(e.target.value==='Otro') { setIsOtherDoc(true); setForm({...form, doctor: ''}); } else { setIsOtherDoc(false); setForm({...form, doctor:e.target.value}); }}}> <option value="">Tratante</option>{docOptions.map(d=><option key={d} value={d}>{d}</option>)}<option value="Otro">Otro / Agregar...</option></select>{isOtherDoc && <input placeholder="Nombre Tratante" required className={`text-xs bg-blue-50 ${inputClass}`} value={form.doctor} onChange={e=>setForm({...form, doctor:e.target.value})}/>}</div>
+                  
+                  <div className="space-y-1"><label className="text-xs font-bold text-gray-500">Residente Principal</label><select className={`text-xs ${inputClass}`} value={isOtherRes ? 'Otro' : form.resident} onChange={e=>{ if(e.target.value==='Otro') { setIsOtherRes(true); setForm({...form, resident: ''}); } else { setIsOtherRes(false); setForm({...form, resident:e.target.value}); }}}> <option value="">No Asignado</option>{resOptions.map(r=><option key={r} value={r}>{r}</option>)}<option value="Otro">Otro / Agregar...</option></select>{isOtherRes && <input placeholder="Nombre Residente" required className={`text-xs bg-blue-50 ${inputClass}`} value={form.resident} onChange={e=>setForm({...form, resident:e.target.value})}/>}</div>
+                  
+                  <div className="space-y-1"><label className="text-xs font-bold text-gray-500">2do Residente (Opcional)</label><select className={`text-xs ${inputClass}`} value={form.resident2 || ''} onChange={e=>setForm({...form, resident2:e.target.value})}> <option value="">Ninguno</option>{resOptions.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
+
+                  <div className="flex gap-2 mt-4 pt-2 border-t dark:border-slate-700"><button type="button" onClick={onClose} className="flex-1 bg-gray-100 dark:bg-slate-600 text-gray-800 dark:text-white py-3 rounded font-bold">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded font-bold shadow-lg">Guardar</button></div>
+              </form>
+          </div>
+      </div>
+    );
 }
