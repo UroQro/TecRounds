@@ -10,7 +10,12 @@ export const DOCTORS = [
 
 export const DEFAULT_RESIDENTS = [
   "Andres", "Roxana", "Diego", "Ivan", "Mariel", "Carlos", "Kevin", "Felipe", 
-  "Daniel", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
+  "Zazueta", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
+].sort();
+
+export const RESIDENTS = [
+  "Andres", "Roxana", "Diego", "Ivan", "Mariel", "Carlos", "Kevin", "Felipe", 
+  "Zazueta", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
 ].sort();
 
 export const LOCATIONS = [
