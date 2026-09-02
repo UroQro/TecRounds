@@ -77,7 +77,7 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
        <div className="space-y-3">
            {filteredList.map(s => {
                const dateObj = new Date(s.date + 'T12:00:00');
-               const dateStr = dateObj.toString() !== 'Invalid Date' ? dateObj.toLocaleDateString('es-MX', {weekday: 'long', day: 'numeric', month: 'long'}) : s.date;
+               const dateStr = dateObj.toLocaleDateString('es-MX', {weekday: 'long', day: 'numeric', month: 'long'});
                const showHeader = s.date !== lastDate;
                lastDate = s.date;
                const opacityClass = getDayOpacity(s.date);

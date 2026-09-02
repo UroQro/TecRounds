@@ -13,11 +13,15 @@ export default function Login() {
   
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isResetting, setIsResetting] = useState(false); // 🔥 NUEVO ESTADO PARA UX
+  
   const FAKE_DOMAIN = "@rounds.app"; 
 
   const handleAuth = async (e) => {
-    e.preventDefault(); setError(''); setMsg('');
+    if (e) e.preventDefault();
+    setError(''); setMsg('');
     
     try { 
         if (isRegistering) {
@@ -34,18 +38,19 @@ export default function Login() {
         }
     } 
     catch (err) { 
-        setError(isRegistering ? "Error al crear cuenta. Verifica que el correo sea válido y la contraseña tenga 6 caracteres." : "Credenciales incorrectas."); 
+        setError(isRegistering ? "Error al crear cuenta. Verifica que el correo sea válido y la contraseña tenga al menos 6 caracteres." : "Credenciales incorrectas."); 
     }
   };
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = async (e) => {
+      if (e) e.preventDefault();
       setError(''); setMsg('');
       if (!loginIdentifier.includes('@')) {
           return setError("Escribe tu correo electrónico real en la casilla para poder recuperar tu contraseña.");
       }
       try {
           await sendPasswordResetEmail(auth, loginIdentifier.trim());
-          setMsg("¡Enlace de recuperación enviado! Revisa tu correo (y la bandeja de Spam).");
+          setMsg("¡Enlace de recuperación enviado! Revisa tu bandeja de entrada o la carpeta de Spam.");
       } catch (err) {
           setError("Error: No se encontró este correo electrónico o está mal escrito.");
       }
@@ -61,9 +66,10 @@ export default function Login() {
         {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-200 p-3 rounded text-sm mb-4 border border-red-200 dark:border-red-700">{error}</div>}
         {msg && <div className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-200 p-3 rounded text-sm mb-4 border border-green-200 dark:border-green-700">{msg}</div>}
         
-        <form onSubmit={handleAuth} className="space-y-4">
+        <form onSubmit={isResetting ? handleResetPassword : handleAuth} className="space-y-4">
             
-            {!isRegistering && (
+            {/* VISTA LOGIN NORMAL */}
+            {!isRegistering && !isResetting && (
                 <>
                     <div>
                         <label className="text-sm font-bold text-slate-600 dark:text-gray-400 block mb-1">Usuario o Correo</label>
@@ -76,6 +82,20 @@ export default function Login() {
                 </>
             )}
 
+            {/* VISTA RECUPERAR CONTRASEÑA */}
+            {isResetting && (
+                <>
+                    <div className="mb-2 text-sm text-slate-600 dark:text-slate-400 text-center">
+                        Ingresa el correo electrónico que usaste para registrarte y te enviaremos un enlace para crear una nueva contraseña.
+                    </div>
+                    <div>
+                        <label className="text-sm font-bold text-slate-600 dark:text-gray-400 block mb-1">Correo Electrónico Real</label>
+                        <input type="email" value={loginIdentifier} onChange={e=>setLoginIdentifier(e.target.value)} className={inputClass} placeholder="ejemplo@gmail.com" required />
+                    </div>
+                </>
+            )}
+
+            {/* VISTA REGISTRO */}
             {isRegistering && (
                 <>
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded border border-blue-100 dark:border-blue-800">
@@ -84,7 +104,7 @@ export default function Login() {
                         <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-1">Este nombre aparecerá en todas tus notas.</p>
                     </div>
                     <div>
-                        <label className="text-sm font-bold text-slate-600 dark:text-gray-400 block mb-1">Correo Electrónico</label>
+                        <label className="text-sm font-bold text-slate-600 dark:text-gray-400 block mb-1">Correo Electrónico Real</label>
                         <input type="email" value={regEmail} onChange={e=>setRegEmail(e.target.value)} className={inputClass} placeholder="Para recuperar contraseña" required />
                     </div>
                     <div>
@@ -99,19 +119,26 @@ export default function Login() {
             )}
 
             <button type="submit" className="w-full bg-blue-600 dark:bg-blue-700 text-white py-3 rounded-lg font-bold hover:opacity-90 transition shadow-lg">
-                {isRegistering ? 'Registrar Usuario' : 'Entrar'}
+                {isRegistering ? 'Registrar Usuario' : isResetting ? 'Enviar enlace de recuperación' : 'Entrar'}
             </button>
         </form>
         
         <div className="mt-5 flex flex-col gap-3 text-center">
-            {!isRegistering && (
-                <button onClick={handleResetPassword} type="button" className="text-xs text-gray-500 dark:text-gray-400 font-semibold hover:underline">
-                    ¿Olvidaste tu contraseña? (Ingresa tu correo arriba)
+            {!isRegistering && !isResetting && (
+                <button onClick={() => { setIsResetting(true); setError(''); setMsg(''); }} type="button" className="text-xs text-gray-500 dark:text-gray-400 font-semibold hover:underline">
+                    ¿Olvidaste tu contraseña?
                 </button>
             )}
-            <button onClick={() => { setIsRegistering(!isRegistering); setError(''); setMsg(''); setMasterPass(''); }} type="button" className="text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline">
-                {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : 'Crear un usuario nuevo'}
-            </button>
+            {isResetting && (
+                <button onClick={() => { setIsResetting(false); setError(''); setMsg(''); }} type="button" className="text-xs text-gray-500 dark:text-gray-400 font-semibold hover:underline">
+                    Volver a iniciar sesión
+                </button>
+            )}
+            {!isResetting && (
+                <button onClick={() => { setIsRegistering(!isRegistering); setError(''); setMsg(''); setMasterPass(''); }} type="button" className="text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline">
+                    {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : 'Crear un usuario nuevo'}
+                </button>
+            )}
         </div>
       </div>
     </div>
