@@ -13,11 +13,6 @@ export const DEFAULT_RESIDENTS = [
   "Zazueta", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
 ].sort();
 
-export const RESIDENTS = [
-  "Andres", "Roxana", "Diego", "Ivan", "Mariel", "Carlos", "Kevin", "Felipe", 
-  "Zazueta", "Galindo", "Joaquin", "Jorge", "Yvonne", "Ana", "Patricio", "Guillermo", "Mario"
-].sort();
-
 export const LOCATIONS = [
   "HZH", "Angeles", "Clinic", "Oca", "CEM", "Cirugia", "DH", "DHE", 
   "San Felipe", "San Vicente", "San Camilo", "Conchita", "Christus", "Instituto", 

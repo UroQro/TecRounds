@@ -81,26 +81,13 @@ export default function AdminPanel({ onClose }) {
         }
     };
 
-    const resetToDefaults = async () => {
-        if(!confirm(`¿RESTABLECER ${activeTab.toUpperCase()}? Esto borrará tus cambios manuales en esta pestaña y cargará la lista oficial.`)) return;
-        let field = '';
-        let defaultData = [];
-        if(activeTab === 'residentes') { field = 'residents'; defaultData = DEFAULT_RESIDENTS; }
-        if(activeTab === 'doctores') { field = 'doctors'; defaultData = DOCTORS; }
-        if(activeTab === 'hospitales') { field = 'locations'; defaultData = LOCATIONS; }
-
-        try {
-            await setDoc(doc(db, 'metadata', 'settings'), { [field]: defaultData }, { merge: true });
-            showMsg("Lista restaurada exitosamente");
-        } catch (err) {
-            showMsg("Error: " + err.message, "error");
-        }
-    };
-
     const handleCreateUser = async (e) => {
         e.preventDefault();
         if(!newUserEmail || !newUserPass) return;
-        const email = newUserEmail.trim().toUpperCase() + "@rounds.app";
+        
+        // Si el admin no le pone correo real, lo fuerza al legacy.
+        const email = newUserEmail.includes('@') ? newUserEmail.trim().toLowerCase() : newUserEmail.trim().toUpperCase() + "@rounds.app";
+        
         try {
             await createUserWithEmailAndPassword(authSecondary, email, newUserPass);
             await setDoc(doc(db, 'metadata', 'settings'), { knownUsers: arrayUnion(email) }, { merge: true });
@@ -173,7 +160,7 @@ export default function AdminPanel({ onClose }) {
                             <h2 className="font-bold mb-4 flex items-center gap-2 text-lg text-slate-800 dark:text-white"><UserPlus size={20}/> Alta de Residentes Nuevos (Silenciosa)</h2>
                             <p className="text-sm text-gray-500 mb-4">Crea cuentas nuevas sin perder tu sesión de Administrador.</p>
                             <form onSubmit={handleCreateUser} className="flex flex-col sm:flex-row gap-2">
-                                <input required placeholder="Usuario (Ej. ANDRES)" className={`flex-1 ${inputClass}`} value={newUserEmail} onChange={e=>setNewUserEmail(e.target.value.toUpperCase())}/>
+                                <input required placeholder="Usuario o Correo Real" className={`flex-1 ${inputClass}`} value={newUserEmail} onChange={e=>setNewUserEmail(e.target.value)}/>
                                 <input required type="password" placeholder="Contraseña (Mín. 6 letras)" className={`flex-1 ${inputClass}`} value={newUserPass} onChange={e=>setNewUserPass(e.target.value)}/>
                                 <button type="submit" className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition">Crear Acceso</button>
                             </form>
@@ -217,12 +204,9 @@ export default function AdminPanel({ onClose }) {
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow border dark:border-slate-700">
                         <div className="flex justify-between items-start mb-4">
                             <div>
-                                <h2 className="font-bold text-lg text-slate-800 dark:text-white capitalize">Opciones para el Menú de {activeTab}</h2>
-                                <p className="text-sm text-gray-500 mt-1">Modifica los nombres que aparecen en las listas al dar de alta un paciente o cirugía.</p>
+                                <h2 className="font-bold text-lg text-slate-800 dark:text-white capitalize">Listado de {activeTab}</h2>
+                                <p className="text-sm text-gray-500 mt-1">Modifica las opciones disponibles en los menús de la aplicación agregando o eliminando manualmente.</p>
                             </div>
-                            <button onClick={resetToDefaults} className="flex items-center gap-1 bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-500 px-3 py-1 rounded text-xs font-bold shadow-sm transition">
-                                <RefreshCcw size={14}/> Restaurar Original
-                            </button>
                         </div>
                         
                         <form onSubmit={handleAddItem} className="flex gap-2 mb-6">
