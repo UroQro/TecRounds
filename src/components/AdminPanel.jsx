@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db, authSecondary } from '../firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, arrayUnion, arrayRemove, onSnapshot } from 'firebase/firestore';
-import { ArrowLeft, Trash2, ShieldAlert, Building2, User, Stethoscope, RefreshCcw, Users, UserPlus, RotateCcw, XCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Trash2, ShieldAlert, Building2, User, Stethoscope, Users, UserPlus, RotateCcw, XCircle } from 'lucide-react';
 import { DEFAULT_RESIDENTS, DOCTORS, LOCATIONS } from '../constants'; 
 
 export default function AdminPanel({ onClose }) {
@@ -17,6 +17,8 @@ export default function AdminPanel({ onClose }) {
     
     const [knownUsers, setKnownUsers] = useState([]);
     const [bannedUsers, setBannedUsers] = useState([]);
+    
+    const [newUserDisplayName, setNewUserDisplayName] = useState('');
     const [newUserEmail, setNewUserEmail] = useState('');
     const [newUserPass, setNewUserPass] = useState('');
     
@@ -83,16 +85,17 @@ export default function AdminPanel({ onClose }) {
 
     const handleCreateUser = async (e) => {
         e.preventDefault();
-        if(!newUserEmail || !newUserPass) return;
+        if(!newUserEmail || !newUserPass || !newUserDisplayName) return;
         
-        // Si el admin no le pone correo real, lo fuerza al legacy.
         const email = newUserEmail.includes('@') ? newUserEmail.trim().toLowerCase() : newUserEmail.trim().toUpperCase() + "@rounds.app";
         
         try {
-            await createUserWithEmailAndPassword(authSecondary, email, newUserPass);
+            const userCred = await createUserWithEmailAndPassword(authSecondary, email, newUserPass);
+            await updateProfile(userCred.user, { displayName: newUserDisplayName.trim().toUpperCase() });
+            
             await setDoc(doc(db, 'metadata', 'settings'), { knownUsers: arrayUnion(email) }, { merge: true });
             showMsg("Usuario creado exitosamente. No se interrumpió tu sesión de Administrador.");
-            setNewUserEmail(''); setNewUserPass('');
+            setNewUserEmail(''); setNewUserPass(''); setNewUserDisplayName('');
         } catch(err) { 
             showMsg("Error al crear: " + err.message, "error"); 
         }
@@ -102,11 +105,11 @@ export default function AdminPanel({ onClose }) {
         try {
             if (isBanned) {
                 await setDoc(doc(db, 'metadata', 'settings'), { bannedUsers: arrayRemove(email) }, { merge: true });
-                showMsg(`Acceso restaurado para ${email.split('@')[0]}`);
+                showMsg(`Acceso restaurado para ${email}`);
             } else {
-                if(!confirm(`¿Revocar acceso al usuario ${email.split('@')[0]}? El sistema lo expulsará inmediatamente.`)) return;
+                if(!confirm(`¿Revocar acceso a ${email}? El sistema lo expulsará inmediatamente.`)) return;
                 await setDoc(doc(db, 'metadata', 'settings'), { bannedUsers: arrayUnion(email) }, { merge: true });
-                showMsg(`Acceso bloqueado para ${email.split('@')[0]}`, "error");
+                showMsg(`Acceso bloqueado para ${email}`, "error");
             }
         } catch (err) {
             showMsg("Error: " + err.message, "error");
@@ -158,17 +161,18 @@ export default function AdminPanel({ onClose }) {
                     <div className="space-y-6">
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow border dark:border-slate-700">
                             <h2 className="font-bold mb-4 flex items-center gap-2 text-lg text-slate-800 dark:text-white"><UserPlus size={20}/> Alta de Residentes Nuevos (Silenciosa)</h2>
-                            <p className="text-sm text-gray-500 mb-4">Crea cuentas nuevas sin perder tu sesión de Administrador.</p>
-                            <form onSubmit={handleCreateUser} className="flex flex-col sm:flex-row gap-2">
-                                <input required placeholder="Usuario o Correo Real" className={`flex-1 ${inputClass}`} value={newUserEmail} onChange={e=>setNewUserEmail(e.target.value)}/>
-                                <input required type="password" placeholder="Contraseña (Mín. 6 letras)" className={`flex-1 ${inputClass}`} value={newUserPass} onChange={e=>setNewUserPass(e.target.value)}/>
-                                <button type="submit" className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition">Crear Acceso</button>
+                            <p className="text-sm text-gray-500 mb-4">Crea cuentas nuevas con correo real sin perder tu sesión de Administrador.</p>
+                            <form onSubmit={handleCreateUser} className="flex flex-col md:flex-row gap-2">
+                                <input required placeholder="Nombre de Usuario" className={`flex-1 ${inputClass} uppercase`} value={newUserDisplayName} onChange={e=>setNewUserDisplayName(e.target.value)}/>
+                                <input required placeholder="Correo Electrónico" className={`flex-1 ${inputClass}`} value={newUserEmail} onChange={e=>setNewUserEmail(e.target.value)}/>
+                                <input required type="password" placeholder="Contraseña (Mín. 6)" className={`flex-1 ${inputClass}`} value={newUserPass} onChange={e=>setNewUserPass(e.target.value)}/>
+                                <button type="submit" className="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 transition whitespace-nowrap">Crear Acceso</button>
                             </form>
                         </div>
 
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow border dark:border-slate-700">
                             <h2 className="font-bold mb-2 flex items-center gap-2 text-lg text-slate-800 dark:text-white"><Users size={20}/> Directorio de Cuentas</h2>
-                            <p className="text-sm text-gray-500 mb-4">Bloquea el acceso a residentes que terminaron su rotación. El sistema cerrará su sesión al instante.</p>
+                            <p className="text-sm text-gray-500 mb-4">Bloquea el acceso a residentes que terminaron su rotación.</p>
                             
                             <div className="space-y-3">
                                 {knownUsers.length === 0 && <p className="text-gray-400 text-center py-4">Cargando la lista de usuarios históricos...</p>}
@@ -179,7 +183,7 @@ export default function AdminPanel({ onClose }) {
                                         <div key={u} className={`flex justify-between items-center p-4 rounded-lg border shadow-sm transition-all ${isBanned ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/50' : 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-900/50'}`}>
                                             <div className="flex flex-col">
                                                 <span className={`font-bold font-mono text-lg ${isBanned ? 'text-red-800 dark:text-red-200 line-through opacity-70' : 'text-green-900 dark:text-green-100'}`}>
-                                                    {u.split('@')[0]}
+                                                    {u}
                                                 </span>
                                                 <span className={`text-[10px] font-black uppercase tracking-wider ${isBanned ? 'text-red-600' : 'text-green-600'}`}>
                                                     {isBanned ? '🚫 ACCESO BLOQUEADO' : '✅ ACTIVO'}
@@ -190,7 +194,7 @@ export default function AdminPanel({ onClose }) {
                                                 onClick={()=>toggleBanStatus(u, isBanned)} 
                                                 className={`flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg shadow-sm transition ${isBanned ? 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 hover:bg-slate-100' : 'bg-red-600 text-white hover:bg-red-700'}`}
                                             >
-                                                {isBanned ? <><RotateCcw size={16}/> Restaurar Acceso</> : <><XCircle size={16}/> Bloquear</>}
+                                                {isBanned ? <><RotateCcw size={16}/> Restaurar</> : <><XCircle size={16}/> Bloquear</>}
                                             </button>
                                         </div>
                                     );

@@ -106,7 +106,12 @@ export default function App() {
   }, []);
 
   const handleLogout = () => { signOut(auth); setView('login'); setShowAdmin(false); };
-  const getUserName = () => user && user.email ? user.email.split('@')[0] : "";
+  
+  const getUserName = () => {
+      if(!user) return "";
+      if(user.displayName) return user.displayName;
+      return user.email ? user.email.split('@')[0] : "User";
+  };
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900 dark:text-white">Cargando...</div>;
   if (!user) return <Login />;
@@ -155,7 +160,7 @@ export default function App() {
           {view === 'discharges' && <Discharges privacyMode={privacyMode} />}
         </main>
         <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v79.0 HybridAuth</span>
+          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v80.0 Auth Fix</span>
           <button onClick={() => setShowAdmin(true)} className="opacity-20 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
         </footer>
       </div>
