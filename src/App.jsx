@@ -122,13 +122,13 @@ export default function App() {
           <div 
              className="fixed inset-0 pointer-events-none z-[99999]" 
              style={{ 
-                 backdropFilter: 'grayscale(100%) contrast(110%) sepia(15%)', 
-                 WebkitBackdropFilter: 'grayscale(100%) contrast(110%) sepia(15%)' 
+                 backdropFilter: 'grayscale(100%) contrast(130%) brightness(98%)', 
+                 WebkitBackdropFilter: 'grayscale(100%) contrast(130%) brightness(98%)' 
              }}
           />
       )}
 
-      <div className={`min-h-screen flex flex-col transition-colors duration-500 relative ${readerMode ? 'e-ink-active bg-[#f4f1ea] text-slate-900 dark:bg-[#222] dark:text-gray-300' : 'font-sans bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100'}`}>
+      <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 relative ${readerMode ? 'e-ink-active bg-[#f8f9fa] text-black dark:bg-[#111] dark:text-white' : 'bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100'}`}>
         
         {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
 
@@ -157,11 +157,11 @@ export default function App() {
         <main className="flex-1 p-2 max-w-5xl mx-auto w-full pb-safe">
           {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
           {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
-          {view === 'discharges' && <Discharges privacyMode={privacyMode} />}
+          {view === 'discharges' && <Discharges user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
         </main>
         <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v80.1 UX Fix</span>
-          <button onClick={() => setShowAdmin(true)} className="opacity-20 hover:opacity-100 transition-opacity ml-2 p-1 text-slate-800 dark:text-white" title="Admin Panel"><Lock size={12}/></button>
+          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v81.0 Pro</span>
+          <button onClick={() => setShowAdmin(true)} className="opacity-40 hover:opacity-100 transition-opacity ml-2 px-2 py-1 rounded bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white flex items-center gap-1" title="Admin Panel"><Lock size={12}/> Admin</button>
         </footer>
       </div>
     </>

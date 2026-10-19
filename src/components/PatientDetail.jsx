@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import { collection, doc, addDoc, updateDoc, arrayUnion, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
-import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate, applyPrivacy } from '../utils';
-import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive, Scissors } from 'lucide-react';
+import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate, applyPrivacy, normalizeText } from '../utils';
+import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive, Scissors, Search, X, FileCheck2 } from 'lucide-react';
 import PatientFormModal from './PatientFormModal';
 
 export default function PatientDetail({ patient: initialPatient, onClose, user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
   const [patient, setPatient] = useState(initialPatient);
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
-  const [showSurgeryModal, setShowSurgeryModal] = useState(false); // 🔥 NUEVO ESTADO PARA EL MODAL DE CIRUGÍA
+  const [showSurgeryModal, setShowSurgeryModal] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
+  const [noteSearch, setNoteSearch] = useState('');
+  const [noteCategory, setNoteCategory] = useState('all'); // 'all' | 'visita' | 'labs' | 'infeccioso' | 'otros'
 
   const [visitForm, setVisitForm] = useState({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
   const [sondaForm, setSondaForm] = useState({ type: 'Foley', fr: '', date: getLocalISODate() });
@@ -47,8 +49,27 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
 
   const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
   const allergies = patient.allergies || 'Negadas';
-  const lastSomato = patient.notes?.find(n => n.type === 'somatometria')?.content;
+  const notesReversed = useMemo(() => (patient.notes || []).slice().reverse(), [patient.notes]);
+  const lastSomato = notesReversed.find(n => n.type === 'somatometria')?.content;
+  const lastSonda = notesReversed.find(n => n.type === 'sonda')?.content;
+  const lastAbx = notesReversed.find(n => n.type === 'antibiotico')?.content;
   const bmi = lastSomato ? lastSomato.bmi : calculateBMI(patient.weight, patient.height);
+
+  const filteredNotes = useMemo(() => {
+    const q = normalizeText(noteSearch);
+    return notesReversed.filter(n => {
+      if (noteCategory === 'visita' && n.type !== 'visita') return false;
+      if (noteCategory === 'labs' && n.type !== 'laboratorios' && n.type !== 'ego') return false;
+      if (noteCategory === 'infeccioso' && n.type !== 'cultivos' && n.type !== 'antibiotico') return false;
+      if (noteCategory === 'otros' && ['visita', 'laboratorios', 'ego', 'cultivos', 'antibiotico'].includes(n.type)) return false;
+
+      if (q) {
+        const textBlob = normalizeText(`${n.type || ''} ${n.author || ''} ${JSON.stringify(n.content || {})}`);
+        if (!textBlob.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [notesReversed, noteSearch, noteCategory]);
 
   useEffect(() => {
     const coll = patient.discharged ? "archived_patients" : "patients";
@@ -62,7 +83,20 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
 
   const togglePreDischarge = async () => {
       const coll = patient.discharged ? "archived_patients" : "patients";
-      await updateDoc(doc(db, coll, patient.id), { preDischarge: !patient.preDischarge });
+      const next = !patient.preDischarge;
+      await updateDoc(doc(db, coll, patient.id), {
+          preDischarge: next,
+          ...(next ? { readyForDischarge: false } : {})
+      });
+  };
+
+  const toggleReadyForDischarge = async () => {
+      const coll = patient.discharged ? "archived_patients" : "patients";
+      const next = !patient.readyForDischarge;
+      await updateDoc(doc(db, coll, patient.id), {
+          readyForDischarge: next,
+          ...(next ? { preDischarge: false } : {})
+      });
   };
 
   const saveNote = async () => {
@@ -147,35 +181,53 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
 
   return (
     <div className="bg-gray-50 dark:bg-slate-900 min-h-full pb-20 transition-colors">
-      <div className={`border-b border-blue-100 dark:border-slate-700 p-3 sticky top-0 z-20 flex gap-2 items-center shadow-sm ${patient.preDischarge ? 'bg-purple-50 dark:bg-purple-900' : 'bg-white dark:bg-slate-800'}`}>
-          <button onClick={onClose}><ArrowLeft className="text-slate-600 dark:text-slate-300"/></button>
-          <div className="flex-1">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-none">{applyPrivacy(patient.name, privacyMode, 'name')}</h2>
-              <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex gap-2 items-center">
+      <div className={`border-b border-blue-100 dark:border-slate-700 p-3 sticky top-0 z-20 flex gap-1.5 items-center shadow-sm ${patient.readyForDischarge ? 'bg-emerald-50 dark:bg-emerald-950' : patient.preDischarge ? 'bg-purple-50 dark:bg-purple-900' : 'bg-white dark:bg-slate-800'}`}>
+          <button onClick={onClose} className="pr-1"><ArrowLeft className="text-slate-600 dark:text-slate-300"/></button>
+          <div className="flex-1 min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-none truncate">{applyPrivacy(patient.name, privacyMode, 'name')}</h2>
+              <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex flex-wrap gap-1.5 items-center">
                   <span>{applyPrivacy(patient.bed, privacyMode, 'bed')} {patient.hospital && `(${patient.hospital})`} • {calculateAge(patient.dob)}a</span>
                   {bmi && <span className="bg-white dark:bg-slate-700 px-1 rounded font-bold text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-slate-600">IMC: {bmi}</span>}
+                  {patient.readyForDischarge && <span className="bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">✅ ALTA EN CAMA</span>}
               </div>
           </div>
           
-          {/* 🔥 AQUÍ ESTÁ EL BOTÓN DE LA TIJERITA AÑADIDO 🔥 */}
-          <button onClick={() => setShowSurgeryModal(true)} className={`p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-orange-500 hover:bg-orange-50 dark:hover:bg-slate-600 mr-1`} title="Programar Cirugía">
+          <button onClick={() => setShowSurgeryModal(true)} className="p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-orange-500 hover:bg-orange-50 dark:hover:bg-slate-600" title="Programar Cirugía">
               <Scissors size={16}/>
           </button>
+
+          <button onClick={toggleReadyForDischarge} className={`p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 transition ${patient.readyForDischarge ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-slate-700 text-gray-400'}`} title="Alta lista (en espera de desocupar cama)">
+              <FileCheck2 size={16}/>
+          </button>
           
-          <button onClick={togglePreDischarge} className={`p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 ${patient.preDischarge ? 'bg-purple-600 text-white' : 'bg-white dark:bg-slate-700 text-gray-400'} mr-1`} title="Pre-alta"><Briefcase size={16}/></button>
+          <button onClick={togglePreDischarge} className={`p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 transition ${patient.preDischarge ? 'bg-purple-600 text-white border-purple-600' : 'bg-white dark:bg-slate-700 text-gray-400'}`} title="Pre-alta"><Briefcase size={16}/></button>
           <button onClick={()=>setShowEdit(true)} className="p-2 bg-white dark:bg-slate-700 rounded-full shadow text-blue-600 dark:text-blue-400" title="Editar paciente"><Edit size={16}/></button>
       </div>
 
       <div className="p-3 space-y-4 bg-gray-50 dark:bg-slate-900 min-h-screen">
           <div className="bg-white dark:bg-slate-800 border border-blue-50 dark:border-slate-700 rounded p-3 text-xs shadow-md dark:shadow-sm text-slate-900 dark:text-slate-200">
-             <div className="flex flex-wrap gap-2 mb-1">
+             <div className="flex flex-wrap gap-1.5 mb-1.5">
                  {antecedents.dm && <span className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-0.5 rounded font-bold">DM</span>}
                  {antecedents.has && <span className="bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 px-2 py-0.5 rounded font-bold">HAS</span>}
                  {antecedents.cancer && <span className="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-2 py-0.5 rounded font-bold">ONCO</span>}
+                 {lastAbx && (
+                     <span className="bg-fuchsia-100 dark:bg-fuchsia-900/50 text-fuchsia-800 dark:text-fuchsia-200 px-2 py-0.5 rounded font-bold">
+                         💊 {lastAbx.drug} (Día {calculateTreatmentDay(lastAbx.startDate)})
+                     </span>
+                 )}
+                 {lastSonda && (
+                     <span className="bg-cyan-100 dark:bg-cyan-900/50 text-cyan-800 dark:text-cyan-200 px-2 py-0.5 rounded font-bold">
+                         🔌 {lastSonda.type} {lastSonda.fr}Fr ({calculateDaysSince(lastSonda.date)}d)
+                     </span>
+                 )}
              </div>
              {antecedents.other && <p className="text-gray-600 dark:text-gray-400"><strong>Ant:</strong> {antecedents.other}</p>}
              {allergies && allergies !== 'Negadas' && <p className="text-red-600 dark:text-red-400 mt-1"><strong>Alergias:</strong> {allergies}</p>}
              <p className="text-gray-500 dark:text-gray-400 mt-1"><strong>Dx:</strong> {patient.diagnosis}</p>
+             <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400 mt-2 pt-1.5 border-t border-gray-100 dark:border-slate-700">
+                 <span><strong>Tratante:</strong> {applyPrivacy(patient.doctor || 'S/A', privacyMode, 'name')}</span>
+                 <span><strong>Residente:</strong> {patient.resident || 'S/A'}</span>
+             </div>
           </div>
 
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded p-3 shadow-md dark:shadow-sm text-slate-900 dark:text-slate-200">
@@ -266,8 +318,46 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
               </div>
           </div>
 
+          {/* Buscador y filtro de notas del expediente */}
+          {(patient.notes?.length || 0) > 0 && (
+              <div className="bg-white dark:bg-slate-800 border border-blue-50 dark:border-slate-700 rounded-lg p-2.5 shadow-sm space-y-2">
+                  <div className="relative">
+                      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      <input
+                          type="text"
+                          value={noteSearch}
+                          onChange={e => setNoteSearch(e.target.value)}
+                          placeholder="Buscar en notas, laboratorios, cultivos..."
+                          className="w-full pl-8 pr-7 py-1.5 border border-gray-200 dark:border-slate-600 rounded text-xs bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                      />
+                      {noteSearch && (
+                          <button onClick={() => setNoteSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                              <X size={13} />
+                          </button>
+                      )}
+                  </div>
+                  <div className="flex gap-1 overflow-x-auto pb-0.5 text-[11px] font-bold">
+                      {[
+                          { id: 'all', label: `Todas (${notesReversed.length})` },
+                          { id: 'visita', label: 'Visitas' },
+                          { id: 'labs', label: 'Labs / EGO' },
+                          { id: 'infeccioso', label: 'Cultivos / Abx' },
+                          { id: 'otros', label: 'Sondas / Otros' }
+                      ].map(cat => (
+                          <button
+                              key={cat.id}
+                              onClick={() => setNoteCategory(cat.id)}
+                              className={`px-2.5 py-1 rounded-full whitespace-nowrap transition ${noteCategory === cat.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}
+                          >
+                              {cat.label}
+                          </button>
+                      ))}
+                  </div>
+              </div>
+          )}
+
           <div className="space-y-3 pb-10">
-              {patient.notes?.slice().reverse().map(note => (
+              {filteredNotes.map(note => (
                   <div key={note.id} className="bg-white dark:bg-slate-800 border border-blue-50 dark:border-slate-700 rounded p-3 shadow-md dark:shadow-sm relative group text-slate-900 dark:text-slate-200">
                        <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b border-gray-100 dark:border-slate-700 pb-1">
                            <span className="font-mono">{new Date(note.timestamp).toLocaleDateString('es-MX', {day:'2-digit', month:'short'})} | {new Date(note.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -327,10 +417,13 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
                        ) : (<div className="text-sm text-gray-800 dark:text-gray-200 break-words">{note.type === 'imagen' ? <a href={note.content.text} target="_blank" className="text-blue-600 underline flex gap-1 items-center"><LinkIcon size={14}/> Ver Imagen</a> : note.content.text}</div>)}
                   </div>
               ))}
+              {filteredNotes.length === 0 && (patient.notes?.length || 0) > 0 && (
+                  <p className="text-center text-xs text-gray-400 py-4">No hay notas que coincidan con la búsqueda.</p>
+              )}
           </div>
       </div>
       
-      {showEdit && <PatientFormModal onClose={() => {setShowEdit(false); onClose();}} mode="edit" initialData={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
+      {showEdit && <PatientFormModal onClose={() => setShowEdit(false)} mode="edit" initialData={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
       
       {/* 🔥 MODAL DE PROGRAMAR CIRUGÍA DESDE EL CENSO 🔥 */}
       {showSurgeryModal && <ScheduleSurgeryModal onClose={() => setShowSurgeryModal(false)} patient={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
@@ -343,6 +436,7 @@ function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDocto
     const [form, setForm] = useState({ 
         date: getLocalISODate(), 
         time: '', 
+        duration: 1,
         patientName: patient.name || '', 
         procedure: '', 
         location: patient.hospital || '', 
@@ -376,7 +470,7 @@ function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDocto
     const handleSubmit = async (e) => { 
         e.preventDefault(); 
         try { 
-            await addDoc(collection(db, "surgeries"), form); 
+            await addDoc(collection(db, "surgeries"), { ...form, duration: Number(form.duration) || 1 }); 
             alert(`¡Cirugía programada para ${form.patientName}!`);
             onClose(); 
         } catch(err) { 
@@ -393,7 +487,21 @@ function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDocto
               <p className="text-xs text-orange-600 dark:text-orange-400 mb-4 font-bold bg-orange-50 dark:bg-orange-900/30 p-2 rounded">Datos copiados desde Censo</p>
               
               <form onSubmit={handleSubmit} className="space-y-3">
-                  <div className="flex gap-2"><input type="date" required className={`flex-1 ${inputClass}`} value={form.date} onChange={e=>setForm({...form, date:e.target.value})} /><input type="time" required className={`flex-1 ${inputClass}`} value={form.time} onChange={e=>setForm({...form, time:e.target.value})} /></div>
+                  <div className="grid grid-cols-3 gap-2">
+                      <input type="date" required className={inputClass} value={form.date} onChange={e=>setForm({...form, date:e.target.value})} />
+                      <input type="time" required className={inputClass} value={form.time} onChange={e=>setForm({...form, time:e.target.value})} />
+                      <select className={inputClass} value={form.duration || 1} onChange={e=>setForm({...form, duration: parseFloat(e.target.value)})}>
+                          <option value={0.5}>30 min</option>
+                          <option value={1}>1 hr (Default)</option>
+                          <option value={1.5}>1.5 hrs</option>
+                          <option value={2}>2 hrs</option>
+                          <option value={2.5}>2.5 hrs</option>
+                          <option value={3}>3 hrs</option>
+                          <option value={4}>4 hrs</option>
+                          <option value={5}>5 hrs</option>
+                          <option value={6}>6 hrs</option>
+                      </select>
+                  </div>
                   <select required className={inputClass} value={form.location} onChange={e=>setForm({...form, location:e.target.value})}><option value="">Sede...</option>{locOptions.map(l=><option key={l} value={l}>{l}</option>)}</select>
                   <input required placeholder="Paciente" className={inputClass} value={form.patientName} onChange={e=>setForm({...form, patientName:e.target.value})} />
                   <input required placeholder="Procedimiento" className={inputClass} value={form.procedure} onChange={e=>setForm({...form, procedure:e.target.value})} />
