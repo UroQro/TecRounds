@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { X, MapPin, ArrowUp, ArrowDown, Sparkles, Calendar, Check, Plus, Trash2, Palmtree } from 'lucide-react';
+import { X, ArrowUp, ArrowDown, Sparkles, Calendar, Check, Plus, Trash2, Palmtree, Lock, RotateCcw } from 'lucide-react';
 import {
   getMemberProfile,
   getOrderedResidents,
@@ -10,46 +10,94 @@ import {
   buildGuardCycleABCD,
   getMonthWeekends,
   getFreeWeekendRulesForDate,
+  getMinGuardCalendarDate,
   normalizeText
 } from '../utils';
 
 export default function RotationScheduleModal({ user, onClose, dynamicResidents = [], settingsMeta = {} }) {
   const today = getLocalISODate();
+  const currentMonthStr = today.slice(0, 7); // Ej: '2026-10'
+  const minOctoberDate = getMinGuardCalendarDate(); // Ej: '2026-10-01'
+  const minOctoberMonth = minOctoberDate.slice(0, 7); // Ej: '2026-10'
+
   const currentRot = settingsMeta?.hzhRotation || {};
   const { allowed: canManage } = useMemo(
     () => canUserManageSchedule(user, settingsMeta),
     [user, settingsMeta]
   );
 
-  // Si estamos en los últimos 3 días del mes, preseleccionar el mes siguiente
-  const defaultMonth = useMemo(() => {
-    if (currentRot.month) return currentRot.month;
-    const now = new Date();
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    if (now.getDate() >= lastDay - 2) {
-      const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
-    }
-    return today.slice(0, 7);
-  }, [currentRot.month, today]);
+  // Siempre abrir por defecto en el mes en curso
+  const [monthStr, setMonthStr] = useState(currentMonthStr);
 
-  const [monthStr, setMonthStr] = useState(defaultMonth);
-  const [selectedHzh, setSelectedHzh] = useState(() => currentRot.residents || []);
-  const [cycleOrder, setCycleOrder] = useState(() =>
-    buildGuardCycleABCD(currentRot.residents || [], settingsMeta, currentRot.cycleOrder || [])
-  );
-  const [cycleStartDate, setCycleStartDate] = useState(() => currentRot.cycleStartDate || `${defaultMonth}-01`);
-  const [schedule, setSchedule] = useState(() => currentRot.schedule || {});
-  const [freeWeekends, setFreeWeekends] = useState(() => currentRot.freeWeekends || []);
+  // Configuración independiente por cada mes (months[YYYY-MM] = { residents, cycleOrder, freeWeekends })
+  // para que cambiar los integrantes de un mes NUNCA mueva ni afecte otros meses
+  const [monthsData, setMonthsData] = useState(() => {
+    const existingMonths = { ...(currentRot.months || {}) };
+    // Si aún no existía entrada para el mes en curso pero había datos en la raíz, migrarlos al mes en curso
+    if (!existingMonths[currentMonthStr] && (currentRot.residents?.length || currentRot.cycleOrder?.length || currentRot.freeWeekends?.length)) {
+      existingMonths[currentMonthStr] = {
+        residents: currentRot.residents || [],
+        cycleOrder: buildGuardCycleABCD(currentRot.residents || [], settingsMeta, currentRot.cycleOrder || []),
+        freeWeekends: (currentRot.freeWeekends || []).filter(r => !r?.startDate || r.startDate >= minOctoberDate)
+      };
+    }
+    return existingMonths;
+  });
+
+  // Guardias día por día: conservar intactas todas las de octubre en adelante y limpiar cualquier fecha previa a octubre
+  const [schedule, setSchedule] = useState(() => {
+    const raw = currentRot.schedule || {};
+    const cleaned = {};
+    Object.keys(raw).forEach(dStr => {
+      if (dStr >= minOctoberDate && raw[dStr]?.guardia) {
+        cleaned[dStr] = { guardia: raw[dStr].guardia };
+      }
+    });
+    return cleaned;
+  });
+
   const [activeSection, setActiveSection] = useState('calendar'); // 'calendar' | 'guards' | 'rotation'
   const [selectedCalDate, setSelectedCalDate] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // Estado para agregar nueva regla de Fin Libre
+  // Estado para agregar nueva regla de Fin Libre en el mes activo
   const [freeRes, setFreeRes] = useState('');
   const [freeWeekendId, setFreeWeekendId] = useState('');
   const [freeSpanMode, setFreeSpanMode] = useState('vie-dom'); // 'vie-dom' | 'sab-dom'
   const [freeReplacement, setFreeReplacement] = useState('Nadie');
+
+  // Reglas de bloqueo por mes:
+  // - Meses previos a octubre (< minOctoberMonth): siempre en blanco y bloqueados
+  // - Meses pasados (< currentMonthStr): guardados y bloqueados (no se pueden editar)
+  const isBeforeOctober = monthStr < minOctoberMonth;
+  const isPastMonth = monthStr < currentMonthStr || isBeforeOctober;
+  const isCurrentMonth = monthStr === currentMonthStr;
+  const isFutureMonth = monthStr > currentMonthStr;
+  const canEditMonth = canManage && !isPastMonth;
+
+  // Datos exclusivos del mes seleccionado (si es previo a octubre, siempre vacío)
+  const activeMonthObj = useMemo(() => {
+    if (isBeforeOctober) {
+      return { residents: [], cycleOrder: [], freeWeekends: [] };
+    }
+    return monthsData[monthStr] || { residents: [], cycleOrder: [], freeWeekends: [] };
+  }, [monthsData, monthStr, isBeforeOctober]);
+
+  const selectedHzh = activeMonthObj.residents || [];
+  const cycleOrder = activeMonthObj.cycleOrder || [];
+  const freeWeekends = activeMonthObj.freeWeekends || [];
+
+  const updateActiveMonthData = (updater) => {
+    if (!canEditMonth) return;
+    setMonthsData(prev => {
+      const current = prev[monthStr] || { residents: [], cycleOrder: [], freeWeekends: [] };
+      const next = typeof updater === 'function' ? updater(current) : { ...current, ...updater };
+      return {
+        ...prev,
+        [monthStr]: next
+      };
+    });
+  };
 
   const { allOrdered } = useMemo(
     () => getOrderedResidents(dynamicResidents, settingsMeta),
@@ -59,49 +107,57 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
   const monthWeekends = useMemo(() => getMonthWeekends(monthStr), [monthStr]);
 
   const toggleHzhResident = (resName) => {
-    if (!canManage) return;
-    setSelectedHzh(prev => {
-      const exists = prev.includes(resName);
-      const next = exists ? prev.filter(r => r !== resName) : [...prev, resName];
-      setCycleOrder(prevCycle => buildGuardCycleABCD(next, settingsMeta, prevCycle));
-      return next;
+    if (!canEditMonth) return;
+    updateActiveMonthData(cur => {
+      const prevRes = cur.residents || [];
+      const exists = prevRes.includes(resName);
+      const nextRes = exists ? prevRes.filter(r => r !== resName) : [...prevRes, resName];
+      const nextCycle = buildGuardCycleABCD(nextRes, settingsMeta, cur.cycleOrder || []);
+      return {
+        ...cur,
+        residents: nextRes,
+        cycleOrder: nextCycle
+      };
     });
   };
 
   const moveInCycle = (idx, dir) => {
-    if (!canManage) return;
+    if (!canEditMonth) return;
+    const base = effectiveCycle;
     const target = idx + dir;
-    if (target < 0 || target >= cycleOrder.length) return;
-    const copy = [...cycleOrder];
+    if (target < 0 || target >= base.length) return;
+    const copy = [...base];
     const temp = copy[idx];
     copy[idx] = copy[target];
     copy[target] = temp;
-    setCycleOrder(copy);
+    updateActiveMonthData(cur => ({ ...cur, cycleOrder: copy }));
   };
 
   const updateCycleSlot = (idx, value) => {
-    if (!canManage) return;
-    setCycleOrder(prev => {
-      const copy = [...prev];
-      copy[idx] = value || 'Nadie';
-      return copy;
-    });
+    if (!canEditMonth) return;
+    const copy = [...effectiveCycle];
+    copy[idx] = value || 'Nadie';
+    updateActiveMonthData(cur => ({ ...cur, cycleOrder: copy }));
   };
 
   const addCycleSlot = () => {
-    if (!canManage) return;
-    setCycleOrder(prev => [...prev, 'Nadie']);
+    if (!canEditMonth) return;
+    const base = effectiveCycle.length >= 4 ? effectiveCycle : ['Nadie', 'Nadie', 'Nadie', 'Nadie'];
+    updateActiveMonthData(cur => ({ ...cur, cycleOrder: [...base, 'Nadie'] }));
   };
 
   const removeCycleSlot = (idx) => {
-    if (!canManage) return;
-    if (cycleOrder.length <= 4) return;
-    setCycleOrder(prev => prev.filter((_, i) => i !== idx));
+    if (!canEditMonth) return;
+    if (effectiveCycle.length <= 4) return;
+    updateActiveMonthData(cur => ({
+      ...cur,
+      cycleOrder: effectiveCycle.filter((_, i) => i !== idx)
+    }));
   };
 
   // Agregar una regla de Fin Libre para que la persona seleccionada no tenga guardias ese fin de semana
   const handleAddFreeWeekendRule = () => {
-    if (!canManage) return;
+    if (!canEditMonth) return;
     if (!freeRes) return alert('Selecciona el residente que tendrá el Fin Libre.');
     const wk = monthWeekends.find(w => w.id === freeWeekendId) || monthWeekends[0];
     if (!wk) return alert('Selecciona el fin de semana.');
@@ -120,14 +176,16 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
       label
     };
 
-    const nextRules = [...freeWeekends, newRule];
-    setFreeWeekends(nextRules);
+    updateActiveMonthData(cur => ({
+      ...cur,
+      freeWeekends: [...(cur.freeWeekends || []), newRule]
+    }));
 
-    // Si en el schedule ya estaba asignado este residente en esos días, reemplazarlo inmediatamente
+    // Si en el schedule de este mes ya estaba asignado este residente en esos días, reemplazarlo
     setSchedule(prev => {
       const nextSched = { ...prev };
       Object.keys(nextSched).forEach(dStr => {
-        if (dStr >= startDate && dStr <= endDate) {
+        if (dStr.startsWith(monthStr) && dStr >= startDate && dStr <= endDate) {
           if (normalizeText(nextSched[dStr]?.guardia) === normalizeText(freeRes)) {
             nextSched[dStr] = { guardia: freeReplacement || 'Nadie' };
           }
@@ -140,11 +198,14 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
   };
 
   const handleRemoveFreeWeekendRule = (ruleId) => {
-    if (!canManage) return;
-    setFreeWeekends(prev => prev.filter(r => r.id !== ruleId));
+    if (!canEditMonth) return;
+    updateActiveMonthData(cur => ({
+      ...cur,
+      freeWeekends: (cur.freeWeekends || []).filter(r => r.id !== ruleId)
+    }));
   };
 
-  // Días del mes seleccionado para vista calendario y lista día por día
+  // Días del mes seleccionado para vista calendario
   const daysInMonth = useMemo(() => {
     const [y, m] = monthStr.split('-').map(Number);
     if (!y || !m) return [];
@@ -177,25 +238,26 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     return cycleOrder;
   }, [cycleOrder]);
 
-  // Calcula la guardia de una fecha respetando schedule, ciclo ABCD y reglas de Fin Libre
+  // Verifica si el mes seleccionado ya tiene guardias asignadas en schedule
+  const hasAssignedGuardsInMonth = useMemo(() => {
+    if (isBeforeOctober) return false;
+    return daysInMonth.some(d => Boolean(schedule[d.dateStr]?.guardia));
+  }, [daysInMonth, schedule, isBeforeOctober]);
+
+  // Calcula la guardia de una fecha leyendo ÚNICAMENTE lo guardado/asignado en schedule
+  // (Sin autoproyección automática a otros meses; meses previos a octubre siempre en blanco)
   const getGuardForDay = (dateStr) => {
-    const activeRules = getFreeWeekendRulesForDate(dateStr, freeWeekends);
+    if (!dateStr || dateStr < minOctoberDate) return '';
+    const dMonth = dateStr.slice(0, 7);
+    const rulesForThatMonth = monthsData[dMonth]?.freeWeekends || (dMonth === currentMonthStr ? freeWeekends : []);
+    const activeRules = getFreeWeekendRulesForDate(dateStr, rulesForThatMonth);
     const freeNormSet = new Set(activeRules.map(r => normalizeText(r.resident)));
 
-    let candidate = '';
-    if (schedule[dateStr]?.guardia) {
-      candidate = schedule[dateStr].guardia;
-    } else if (effectiveCycle.length > 0 && cycleStartDate) {
-      const d1 = new Date(cycleStartDate + 'T12:00:00');
-      const d2 = new Date(dateStr + 'T12:00:00');
-      const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
-      if (diff >= 0) {
-        candidate = effectiveCycle[diff % effectiveCycle.length] || '';
-      }
-    }
+    const candidate = schedule[dateStr]?.guardia || '';
+    if (!candidate) return '';
 
     // Si la persona seleccionada tiene Fin Libre en esta fecha, no hace guardia
-    if (candidate && candidate !== 'Nadie' && freeNormSet.has(normalizeText(candidate))) {
+    if (candidate !== 'Nadie' && freeNormSet.has(normalizeText(candidate))) {
       const matchingRule = activeRules.find(r => normalizeText(r.resident) === normalizeText(candidate));
       return matchingRule?.replacement || 'Nadie';
     }
@@ -205,6 +267,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
 
   // Calcula automáticamente la posguardia como quien tuvo guardia el día anterior
   const getAutoPosguardiaForDay = (dateStr) => {
+    if (!dateStr || dateStr < minOctoberDate) return '';
     const d = new Date(dateStr + 'T12:00:00');
     d.setDate(d.getDate() - 1);
     const offset = d.getTimezoneOffset() * 60000;
@@ -212,12 +275,23 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     return getGuardForDay(prevDateStr);
   };
 
-  // Autollenar todo el mes seleccionado según el orden del ciclo ABCD y respetando las reglas de Fin Libre
+  // Autollenar ÚNICAMENTE el mes seleccionado según su propio ciclo ABCD y respetando sus reglas de Fin Libre
   const autoFillMonthGuards = () => {
-    if (!canManage) return;
+    if (!canEditMonth) return;
+    if (effectiveCycle.length === 0 || effectiveCycle.every(x => x === 'Nadie')) {
+      alert('Primero selecciona a los residentes del ciclo ABCD para este mes.');
+      return;
+    }
+    if (hasAssignedGuardsInMonth) {
+      const ok = window.confirm(
+        `El mes ${monthStr} ya tiene guardias asignadas (por ejemplo, llenadas a mano). ¿Seguro que deseas reemplazarlas con el autollenado ABCD?`
+      );
+      if (!ok) return;
+    }
+
     const cycleToUse = effectiveCycle.length >= 4 ? effectiveCycle : ['Nadie', 'Nadie', 'Nadie', 'Nadie'];
     const nextSchedule = { ...schedule };
-    const startObj = new Date(cycleStartDate + 'T12:00:00');
+    const startObj = new Date(`${monthStr}-01T12:00:00`);
 
     daysInMonth.forEach((day) => {
       const curObj = new Date(day.dateStr + 'T12:00:00');
@@ -239,8 +313,24 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     setSchedule(nextSchedule);
   };
 
+  // Dejar en blanco todas las guardias del mes seleccionado (solo disponible en mes actual o futuros)
+  const clearMonthGuards = () => {
+    if (!canEditMonth) return;
+    if (!window.confirm(`¿Dejar en blanco todas las guardias de ${monthStr}?`)) return;
+    setSchedule(prev => {
+      const next = { ...prev };
+      daysInMonth.forEach(d => {
+        delete next[d.dateStr];
+      });
+      return next;
+    });
+    setSelectedCalDate(null);
+  };
+
   const setDayGuard = (dateStr, value) => {
-    if (!canManage) return;
+    if (!canEditMonth) return;
+    if (dateStr < minOctoberDate || dateStr.slice(0, 7) < currentMonthStr) return;
+
     if (value && value !== 'Nadie') {
       const activeRules = getFreeWeekendRulesForDate(dateStr, freeWeekends);
       const hasFreeRule = activeRules.some(r => normalizeText(r.resident) === normalizeText(value));
@@ -249,26 +339,45 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
         return;
       }
     }
-    setSchedule(prev => ({
-      ...prev,
-      [dateStr]: {
-        guardia: value
+    setSchedule(prev => {
+      const next = { ...prev };
+      if (!value) {
+        delete next[dateStr];
+      } else {
+        next[dateStr] = { guardia: value };
       }
-    }));
+      return next;
+    });
   };
 
   const handleSave = async () => {
     if (!canManage) return;
     setSaving(true);
     try {
+      // Asegurar que ninguna fecha previa a octubre se guarde en schedule
+      const cleanSchedule = {};
+      Object.keys(schedule).forEach(dStr => {
+        if (dStr >= minOctoberDate && schedule[dStr]?.guardia) {
+          cleanSchedule[dStr] = { guardia: schedule[dStr].guardia };
+        }
+      });
+
+      // Mantener sincronizados los campos raíz con los del mes en curso para los dropdowns activos de la app
+      const curMonthCfg = monthsData[currentMonthStr] || {
+        residents: currentRot.residents || [],
+        cycleOrder: currentRot.cycleOrder || [],
+        freeWeekends: currentRot.freeWeekends || []
+      };
+
       const payload = {
         hzhRotation: {
-          month: monthStr,
-          residents: selectedHzh,
-          cycleOrder: effectiveCycle,
-          cycleStartDate,
-          schedule,
-          freeWeekends,
+          month: currentMonthStr,
+          residents: curMonthCfg.residents || [],
+          cycleOrder: curMonthCfg.cycleOrder || [],
+          cycleStartDate: `${currentMonthStr}-01`,
+          schedule: cleanSchedule,
+          freeWeekends: curMonthCfg.freeWeekends || [],
+          months: monthsData,
           updatedAt: new Date().toISOString()
         }
       };
@@ -292,7 +401,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
               Calendario de Guardias y Rotación HZH
             </h3>
             <p className="text-[11px] text-slate-400">
-              Rol mensual ABCD, Fines Libres y Residentes en Zambrano
+              Guardias por mes (meses pasados guardados y bloqueados; meses futuros en blanco hasta generarlos)
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1">
@@ -302,7 +411,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
 
         {/* Selector de mes y pestañas */}
         <div className="p-2.5 bg-slate-50 dark:bg-slate-900/60 border-b border-gray-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Calendar size={14} className="text-orange-500" />
             <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Mes:</span>
             <input
@@ -310,11 +419,26 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
               value={monthStr}
               onChange={e => {
                 setMonthStr(e.target.value);
-                setCycleStartDate(`${e.target.value}-01`);
                 setSelectedCalDate(null);
               }}
               className="px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
             />
+            {isPastMonth && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-black">
+                <Lock size={11} />
+                {isBeforeOctober ? 'Previo a Oct (En blanco)' : 'Mes pasado (Solo lectura)'}
+              </span>
+            )}
+            {isCurrentMonth && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black">
+                Mes en curso
+              </span>
+            )}
+            {isFutureMonth && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-black">
+                {hasAssignedGuardsInMonth ? 'Mes futuro (Configurado)' : 'Mes futuro (En blanco)'}
+              </span>
+            )}
           </div>
 
           <div className="flex bg-gray-200 dark:bg-slate-700 p-0.5 rounded-lg text-[11px] font-bold">
@@ -349,20 +473,36 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
              ================================================================= */}
           {activeSection === 'calendar' && (
             <div className="space-y-3">
-              {/* Leyenda superior + botón rápido de autollenado si gestiona */}
+              {/* Leyenda superior */}
               <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 px-2.5 py-1.5 rounded-lg border border-gray-100 dark:border-slate-700">
                 <div className="flex flex-wrap items-center gap-3">
                   <span>🛡️ Guardia del día</span>
                   <span>💤 Posguardia (Guardia de ayer)</span>
                   <span className="text-emerald-600 dark:text-emerald-400">🏖️ Fin Libre</span>
                 </div>
-                {canManage && (
-                  <span className="text-blue-600 dark:text-blue-400">Toca un día para cambiar guardia</span>
-                )}
+                {canEditMonth ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-600 dark:text-blue-400">Toca un día para asignar guardia</span>
+                    {hasAssignedGuardsInMonth && isFutureMonth && (
+                      <button
+                        type="button"
+                        onClick={clearMonthGuards}
+                        className="text-red-500 hover:text-red-700 underline flex items-center gap-0.5"
+                        title="Dejar este mes futuro en blanco"
+                      >
+                        <RotateCcw size={10} /> Vaciar mes
+                      </button>
+                    )}
+                  </div>
+                ) : isPastMonth ? (
+                  <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <Lock size={11} /> Mes cerrado (no editable)
+                  </span>
+                ) : null}
               </div>
 
-              {/* Editor rápido al tocar un día del calendario (solo R4/R5) */}
-              {canManage && selectedCalDate && (() => {
+              {/* Editor rápido al tocar un día del calendario (solo si el mes es editable) */}
+              {canEditMonth && selectedCalDate && (() => {
                 const currentG = getGuardForDay(selectedCalDate);
                 const currentP = getAutoPosguardiaForDay(selectedCalDate);
                 const activeFree = getFreeWeekendRulesForDate(selectedCalDate, freeWeekends);
@@ -383,7 +523,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                         onChange={e => setDayGuard(selectedCalDate, e.target.value)}
                         className="p-1 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
                       >
-                        <option value="">— Sin asignar —</option>
+                        <option value="">— En blanco —</option>
                         <option value="Nadie">🚫 Nadie (Sin guardia)</option>
                         {selectedHzh.length > 0 && (
                           <optgroup label="📍 Rotando en HZH">
@@ -433,7 +573,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                     }
                     const dGuard = getGuardForDay(cell.dateStr);
                     const dPos = getAutoPosguardiaForDay(cell.dateStr);
-                    const freeRules = getFreeWeekendRulesForDate(cell.dateStr, freeWeekends);
+                    const freeRules = isBeforeOctober ? [] : getFreeWeekendRulesForDate(cell.dateStr, freeWeekends);
                     const gProf = dGuard ? getMemberProfile(dGuard, settingsMeta) : null;
                     const pProf = dPos ? getMemberProfile(dPos, settingsMeta) : null;
                     const isToday = cell.dateStr === today;
@@ -443,9 +583,9 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                     return (
                       <div
                         key={cell.dateStr}
-                        onClick={() => canManage && setSelectedCalDate(cell.dateStr === selectedCalDate ? null : cell.dateStr)}
+                        onClick={() => canEditMonth && setSelectedCalDate(cell.dateStr === selectedCalDate ? null : cell.dateStr)}
                         className={`min-h-[68px] p-1 rounded-lg border flex flex-col justify-between transition ${
-                          canManage ? 'cursor-pointer hover:border-blue-400' : ''
+                          canEditMonth ? 'cursor-pointer hover:border-blue-400' : ''
                         } ${
                           isSelected
                             ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50/40 dark:bg-blue-950/40'
@@ -505,7 +645,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
               {freeWeekends.length > 0 && (
                 <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-2.5 space-y-1.5">
                   <div className="text-[11px] font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
-                    <Palmtree size={13} /> Fines Libres Programados
+                    <Palmtree size={13} /> Fines Libres Programados ({monthStr})
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {freeWeekends.map(rule => {
@@ -518,7 +658,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                           <span className={`w-2 h-2 rounded-full ${prof.colorObj.dot}`} />
                           <span>{rule.resident}</span>
                           <span className="text-emerald-600 dark:text-emerald-400">({rule.label})</span>
-                          {canManage && (
+                          {canEditMonth && (
                             <button
                               type="button"
                               onClick={() => handleRemoveFreeWeekendRule(rule.id)}
@@ -542,19 +682,26 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
              ================================================================= */}
           {activeSection === 'guards' && (
             <div className="space-y-3">
+              {isPastMonth && (
+                <div className="bg-slate-100 dark:bg-slate-700/60 border border-slate-300 dark:border-slate-600 p-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                  <Lock size={14} />
+                  <span>Este es un mes pasado ({monthStr}). Las guardias están guardadas y no se pueden editar.</span>
+                </div>
+              )}
+
               {/* Regla de Fin Libre (para que ese fin la persona seleccionada no tenga guardias) */}
               <div className="bg-emerald-50/60 dark:bg-emerald-950/25 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/60 space-y-2.5">
                 <div>
                   <span className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
                     <Palmtree size={15} className="text-emerald-600 dark:text-emerald-400" />
-                    Regla de Fin Libre (Sin Guardias en Fin de Semana)
+                    Regla de Fin Libre en {monthStr} (Sin Guardias en Fin de Semana)
                   </span>
                   <p className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
-                    La persona seleccionada quedará exenta de guardias durante todo ese fin de semana.
+                    La persona seleccionada quedará exenta de guardias durante todo ese fin de semana de {monthStr}.
                   </p>
                 </div>
 
-                {canManage && (
+                {canEditMonth && (
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
                     <div>
                       <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-0.5">Residente:</label>
@@ -638,7 +785,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                               (Cubre: {rule.replacement || 'Nadie'})
                             </span>
                           </div>
-                          {canManage && (
+                          {canEditMonth && (
                             <button
                               type="button"
                               onClick={() => handleRemoveFreeWeekendRule(rule.id)}
@@ -653,21 +800,21 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                     })}
                   </div>
                 ) : (
-                  <p className="text-[11px] text-gray-400 italic">No hay reglas de Fin Libre activas en este mes.</p>
+                  <p className="text-[11px] text-gray-400 italic">No hay reglas de Fin Libre activas en {monthStr}.</p>
                 )}
               </div>
 
-              {/* Generador automático por ciclo ABCD (solo visible si puede gestionar) */}
-              {canManage && (
+              {/* Generador automático por ciclo ABCD (solo visible si puede editar este mes) */}
+              {canEditMonth && (
                 <div className="bg-slate-50 dark:bg-slate-700/40 p-3 rounded-xl border border-gray-200 dark:border-slate-600 space-y-2">
                   <div className="flex flex-wrap justify-between items-center gap-1.5">
                     <div>
                       <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1">
                         <Sparkles size={14} className="text-blue-500" />
-                        Ciclo de Guardia (Frecuencia máx. ABCD)
+                        Ciclo ABCD para {monthStr}
                       </span>
                       <p className="text-[10px] text-gray-500 dark:text-slate-400">
-                        Mínimo 4 posiciones (A-B-C-D). Respeta automáticamente los Fines Libres.
+                        Cambiar integrantes aquí NO mueve otros meses ni modifica días hasta que pulses "Autollenar {monthStr}".
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -684,7 +831,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                         onClick={autoFillMonthGuards}
                         className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-sm transition"
                       >
-                        ⚡ Autollenar Mes
+                        ⚡ Autollenar {monthStr}
                       </button>
                     </div>
                   </div>
@@ -692,11 +839,11 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                   {effectiveCycle.length === 0 ? (
                     <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-dashed border-gray-300 dark:border-slate-600">
                       <p className="text-[11px] text-gray-500 dark:text-slate-400">
-                        Selecciona residentes en "📍 HZH" o inicia un ciclo ABCD.
+                        Selecciona residentes en "📍 HZH" para {monthStr} o inicia un ciclo ABCD.
                       </p>
                       <button
                         type="button"
-                        onClick={() => setCycleOrder(['Nadie', 'Nadie', 'Nadie', 'Nadie'])}
+                        onClick={() => updateActiveMonthData(cur => ({ ...cur, cycleOrder: ['Nadie', 'Nadie', 'Nadie', 'Nadie'] }))}
                         className="text-[10px] font-bold text-blue-600 dark:text-blue-400 underline ml-2 whitespace-nowrap"
                       >
                         Iniciar ABCD
@@ -754,8 +901,15 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
              ================================================================= */}
           {activeSection === 'rotation' && (
             <>
+              {isPastMonth && (
+                <div className="bg-slate-100 dark:bg-slate-700/60 border border-slate-300 dark:border-slate-600 p-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                  <Lock size={14} />
+                  <span>Este es un mes pasado ({monthStr}). La rotación está guardada en modo de solo lectura.</span>
+                </div>
+              )}
+
               <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/60 p-2.5 rounded-xl text-xs text-orange-800 dark:text-orange-200">
-                Residentes rotando en el <strong>Hospital Zambrano Hellion</strong> durante <strong>{monthStr}</strong>. Aparecen primero en todos los selectores.
+                Residentes rotando en el <strong>Hospital Zambrano Hellion</strong> durante <strong>{monthStr}</strong>.
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -771,13 +925,13 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                         isSelected
                           ? 'bg-orange-50 dark:bg-orange-950/50 border-orange-500 ring-1 ring-orange-500/50 shadow-sm'
                           : 'bg-white dark:bg-slate-700/60 border-gray-200 dark:border-slate-600 opacity-75'
-                      } ${canManage ? 'hover:opacity-100' : 'cursor-default'}`}
+                      } ${canEditMonth ? 'hover:opacity-100' : 'cursor-default'}`}
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${prof.colorObj.dot}`} />
                         <span className="text-xs font-bold text-slate-800 dark:text-white truncate">{resName}</span>
                       </div>
-                      {canManage ? (
+                      {canEditMonth ? (
                         <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isSelected ? 'bg-orange-500 text-white' : 'border border-gray-300 dark:border-slate-500'}`}>
                           {isSelected && <Check size={11} />}
                         </span>

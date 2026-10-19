@@ -195,7 +195,11 @@ export const getMemberProfile = (nameOrEmail, settingsMeta = {}) => {
     // El color siempre corresponde al rango (Profesor: negro, R5: dorado, R4: plata, R3: bronce, R2: azul, EXT: gris)
     const targetColorId = roleObj?.defaultColor || 'blue';
     const colorObj = USER_COLORS.find(c => c.id === targetColorId) || defaultBlueColor;
-    const hzhList = (settingsMeta?.hzhRotation?.residents || []).map(normalizeText);
+    const curMonthKey = getLocalISODate().slice(0, 7);
+    const activeHzhResidents = settingsMeta?.hzhRotation?.months?.[curMonthKey]?.residents
+        || settingsMeta?.hzhRotation?.residents
+        || [];
+    const hzhList = activeHzhResidents.map(normalizeText);
     const inHzh = hzhList.includes(norm) || hzhList.includes(emailPrefix) || (found?.name && hzhList.includes(normalizeText(found.name)));
 
     return {
@@ -434,37 +438,35 @@ export const getFreeWeekendRulesForDate = (dateStr, freeWeekends = []) => {
     );
 };
 
+// Fecha mínima a partir de la cual existen guardias en el calendario (octubre del año en curso; meses previos siempre en blanco)
+export const getMinGuardCalendarDate = () => {
+    const curYear = getLocalISODate().slice(0, 4);
+    return `${curYear}-10-01`;
+};
+
 export const getGuardForDate = (dateStr, settingsMeta = {}) => {
-    if (!dateStr) return { guardia: '', posguardia: '', freeResidents: [] };
+    const minOctDate = getMinGuardCalendarDate();
+    if (!dateStr || dateStr < minOctDate) {
+        return { guardia: '', posguardia: '', freeResidents: [] };
+    }
     const rot = settingsMeta?.hzhRotation || {};
     const schedule = rot.schedule || {};
-    const freeWeekends = rot.freeWeekends || [];
-    const rawCycle = rot.cycleOrder || [];
-    // Garantizar que si hay <= 3 elementos en el ciclo guardado, se respete la frecuencia máxima ABCD (mínimo 4 slots con 'Nadie')
-    const effectiveCycle = rawCycle.length > 0 && rawCycle.length < 4
-        ? [...rawCycle, ...Array(4 - rawCycle.length).fill('Nadie')]
-        : rawCycle;
+
+    const getRulesForDay = (dStr) => {
+        const mKey = dStr.slice(0, 7);
+        const monthRules = rot.months?.[mKey]?.freeWeekends;
+        const allRules = Array.isArray(monthRules) ? monthRules : (rot.freeWeekends || []);
+        return getFreeWeekendRulesForDate(dStr, allRules);
+    };
 
     const resolveSingleDayGuard = (dStr) => {
-        const activeRules = getFreeWeekendRulesForDate(dStr, freeWeekends);
+        if (!dStr || dStr < minOctDate) return '';
+        const activeRules = getRulesForDay(dStr);
         const freeNormSet = new Set(activeRules.map(r => normalizeText(r.resident)));
 
-        let candidate = '';
-        if (schedule[dStr]?.guardia) {
-            candidate = schedule[dStr].guardia;
-        } else {
-            const startStr = rot.cycleStartDate;
-            if (effectiveCycle.length > 0 && startStr) {
-                const d1 = new Date(startStr + 'T12:00:00');
-                const d2 = new Date(dStr + 'T12:00:00');
-                const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
-                if (diffDays >= 0) {
-                    candidate = effectiveCycle[diffDays % effectiveCycle.length] || '';
-                }
-            }
-        }
+        // Solo leer guardias explícitamente guardadas/generadas en schedule (nunca proyectar automáticamente a otros meses)
+        const candidate = schedule[dStr]?.guardia || '';
 
-        // Si el residente que tocaba en este día tiene regla de Fin Libre activa, NO tiene guardia
         if (candidate && candidate !== 'Nadie' && freeNormSet.has(normalizeText(candidate))) {
             const matchingRule = activeRules.find(r => normalizeText(r.resident) === normalizeText(candidate));
             return matchingRule?.replacement || 'Nadie';
@@ -474,10 +476,10 @@ export const getGuardForDate = (dateStr, settingsMeta = {}) => {
     };
 
     const guardia = resolveSingleDayGuard(dateStr);
-    // Posguardia se asigna 100% automáticamente a quien estuvo de guardia ayer (si ayer estuvo 'Nadie', hoy posguardia es 'Nadie')
+    // Posguardia se asigna 100% automáticamente a quien estuvo de guardia ayer
     const yesterdayStr = addDaysISO(dateStr, -1);
     const posguardia = resolveSingleDayGuard(yesterdayStr) || '';
-    const freeResidents = getFreeWeekendRulesForDate(dateStr, freeWeekends).map(r => r.resident);
+    const freeResidents = getRulesForDay(dateStr).map(r => r.resident);
 
     return { guardia, posguardia, freeResidents };
 };
