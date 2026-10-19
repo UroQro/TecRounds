@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { X, ArrowUp, ArrowDown, Sparkles, Calendar, Check, Plus, Trash2, Palmtree, Lock, RotateCcw } from 'lucide-react';
+import { X, ArrowUp, ArrowDown, Sparkles, Calendar, Check, Plus, Trash2, Palmtree, Lock, RotateCcw, Download, LayoutGrid, List } from 'lucide-react';
 import {
   getMemberProfile,
   getOrderedResidents,
@@ -13,6 +13,38 @@ import {
   getMinGuardCalendarDate,
   normalizeText
 } from '../utils';
+
+// Devuelve un nombre corto y legible para que quepa completo en las celdas móviles del calendario
+const formatMobileGuardName = (name) => {
+  if (!name) return '';
+  if (name === 'Nadie') return 'Nadie';
+  const clean = String(name).replace(/^(dr\.?|dra\.?)\s+/i, '').trim();
+  const parts = clean.split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  // Si el primer nombre es muy corto (ej. "Juan"), incluir inicial del segundo
+  if (parts[0].length <= 6 && parts[1]) {
+    return `${parts[0]} ${parts[1][0]}.`;
+  }
+  return parts[0];
+};
+
+// Colores hexadecimales por rango para renderizar el calendario descargable en alta resolución
+const getCanvasColorsForRole = (role) => {
+  switch (role) {
+    case 'r5':
+      return { bg: '#FEF3C7', border: '#F59E0B', text: '#92400E' }; // Dorado
+    case 'r4':
+      return { bg: '#E2E8F0', border: '#64748B', text: '#1E293B' }; // Plata
+    case 'r3':
+      return { bg: '#FFEDD5', border: '#EA580C', text: '#9A3412' }; // Bronce
+    case 'r2':
+      return { bg: '#DBEAFE', border: '#3B82F6', text: '#1E40AF' }; // Azul
+    case 'profesor':
+      return { bg: '#1E293B', border: '#0F172A', text: '#FFFFFF' }; // Negro
+    default:
+      return { bg: '#F1F5F9', border: '#CBD5E1', text: '#64748B' }; // Neutro / Nadie
+  }
+};
 
 export default function RotationScheduleModal({ user, onClose, dynamicResidents = [], settingsMeta = {} }) {
   const today = getLocalISODate();
@@ -30,10 +62,8 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
   const [monthStr, setMonthStr] = useState(currentMonthStr);
 
   // Configuración independiente por cada mes (months[YYYY-MM] = { residents, cycleOrder, freeWeekends })
-  // para que cambiar los integrantes de un mes NUNCA mueva ni afecte otros meses
   const [monthsData, setMonthsData] = useState(() => {
     const existingMonths = { ...(currentRot.months || {}) };
-    // Si aún no existía entrada para el mes en curso pero había datos en la raíz, migrarlos al mes en curso
     if (!existingMonths[currentMonthStr] && (currentRot.residents?.length || currentRot.cycleOrder?.length || currentRot.freeWeekends?.length)) {
       existingMonths[currentMonthStr] = {
         residents: currentRot.residents || [],
@@ -57,6 +87,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
   });
 
   const [activeSection, setActiveSection] = useState('calendar'); // 'calendar' | 'guards' | 'rotation'
+  const [calDisplayMode, setCalDisplayMode] = useState('grid'); // 'grid' | 'list'
   const [selectedCalDate, setSelectedCalDate] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -245,7 +276,6 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
   }, [daysInMonth, schedule, isBeforeOctober]);
 
   // Calcula la guardia de una fecha leyendo ÚNICAMENTE lo guardado/asignado en schedule
-  // (Sin autoproyección automática a otros meses; meses previos a octubre siempre en blanco)
   const getGuardForDay = (dateStr) => {
     if (!dateStr || dateStr < minOctoberDate) return '';
     const dMonth = dateStr.slice(0, 7);
@@ -256,7 +286,6 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     const candidate = schedule[dateStr]?.guardia || '';
     if (!candidate) return '';
 
-    // Si la persona seleccionada tiene Fin Libre en esta fecha, no hace guardia
     if (candidate !== 'Nadie' && freeNormSet.has(normalizeText(candidate))) {
       const matchingRule = activeRules.find(r => normalizeText(r.resident) === normalizeText(candidate));
       return matchingRule?.replacement || 'Nadie';
@@ -265,7 +294,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     return candidate;
   };
 
-  // Calcula automáticamente la posguardia como quien tuvo guardia el día anterior
+  // Calcula automáticamente la POS (posguardia) como quien tuvo guardia el día anterior
   const getAutoPosguardiaForDay = (dateStr) => {
     if (!dateStr || dateStr < minOctoberDate) return '';
     const d = new Date(dateStr + 'T12:00:00');
@@ -273,6 +302,153 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     const offset = d.getTimezoneOffset() * 60000;
     const prevDateStr = new Date(d - offset).toISOString().slice(0, 10);
     return getGuardForDay(prevDateStr);
+  };
+
+  // Descargar el calendario del mes seleccionado como imagen PNG de alta resolución
+  const handleDownloadCalendar = () => {
+    const [y, m] = monthStr.split('-').map(Number);
+    const monthTitle = new Date(y, (m || 1) - 1, 1).toLocaleDateString('es-MX', {
+      month: 'long',
+      year: 'numeric'
+    }).toUpperCase();
+
+    const numRows = Math.ceil(calendarCells.length / 7) || 5;
+    const width = 1400;
+    const headerH = 140;
+    const dowH = 44;
+    const cellH = 145;
+    const footerH = 60;
+    const height = headerH + dowH + numRows * cellH + footerH;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Fondo general
+    ctx.fillStyle = '#F8FAFC';
+    ctx.fillRect(0, 0, width, height);
+
+    // Cabecera oscura
+    ctx.fillStyle = '#0F172A';
+    ctx.fillRect(0, 0, width, headerH);
+
+    ctx.fillStyle = '#F97316';
+    ctx.font = '900 30px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText('UroTec', 36, 52);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '800 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(`— CALENDARIO DE GUARDIAS: ${monthTitle}`, 152, 52);
+
+    ctx.fillStyle = '#CBD5E1';
+    ctx.font = '600 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    const hzhText = selectedHzh.length > 0 ? `📍 Rotación HZH: ${selectedHzh.join(', ')}` : '📍 Rotación HZH: —';
+    ctx.fillText(hzhText, 36, 90);
+
+    const freeText = freeWeekends.length > 0
+      ? `🏖️ Fines Libres: ${freeWeekends.map(r => `${r.resident} (${r.label})`).join('  •  ')}`
+      : '🛡️ Guardia del día   |   💤 POS: Guardia del día anterior';
+    ctx.fillStyle = '#34D399';
+    ctx.font = '600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(freeText.slice(0, 125), 36, 118);
+
+    // Encabezado días de la semana
+    const dows = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+    const gridMarginX = 24;
+    const gridW = width - gridMarginX * 2;
+    const colW = gridW / 7;
+
+    ctx.fillStyle = '#E2E8F0';
+    ctx.fillRect(gridMarginX, headerH + 8, gridW, dowH - 8);
+
+    ctx.fillStyle = '#334155';
+    ctx.font = '800 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    dows.forEach((dName, i) => {
+      ctx.fillText(dName, gridMarginX + colW * i + colW / 2, headerH + 31);
+    });
+    ctx.textAlign = 'left';
+
+    // Celdas del mes
+    const startY = headerH + dowH;
+    for (let r = 0; r < numRows; r++) {
+      for (let c = 0; c < 7; c++) {
+        const idx = r * 7 + c;
+        const cell = calendarCells[idx];
+        const x = gridMarginX + c * colW;
+        const yPos = startY + r * cellH;
+
+        ctx.fillStyle = cell ? (c === 0 || c === 6 ? '#F1F5F9' : '#FFFFFF') : '#F8FAFC';
+        ctx.fillRect(x, yPos, colW, cellH);
+
+        ctx.strokeStyle = '#CBD5E1';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, yPos, colW, cellH);
+
+        if (!cell) continue;
+
+        // Número de día
+        ctx.fillStyle = '#0F172A';
+        ctx.font = '900 19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText(String(cell.dayNum), x + 12, yPos + 26);
+
+        // Regla Fin Libre
+        const freeRules = isBeforeOctober ? [] : getFreeWeekendRulesForDate(cell.dateStr, freeWeekends);
+        if (freeRules.length > 0) {
+          ctx.fillStyle = '#D1FAE5';
+          ctx.fillRect(x + 48, yPos + 8, colW - 56, 22);
+          ctx.fillStyle = '#065F46';
+          ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillText(`🏖️ ${freeRules.map(f => formatMobileGuardName(f.resident)).join(', ')}`.slice(0, 18), x + 53, yPos + 23);
+        }
+
+        const dGuard = getGuardForDay(cell.dateStr);
+        const dPos = getAutoPosguardiaForDay(cell.dateStr);
+
+        // Bloque Guardia
+        if (dGuard) {
+          const gProf = getMemberProfile(dGuard, settingsMeta);
+          const col = getCanvasColorsForRole(gProf.role);
+          ctx.fillStyle = col.bg;
+          ctx.fillRect(x + 10, yPos + 38, colW - 20, 46);
+          ctx.strokeStyle = col.border;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 10, yPos + 38, colW - 20, 46);
+
+          ctx.fillStyle = col.text;
+          ctx.font = '800 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillText('GUARDIA:', x + 18, yPos + 54);
+          ctx.font = '900 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillText(dGuard.slice(0, 16), x + 18, yPos + 75);
+        } else {
+          ctx.fillStyle = '#94A3B8';
+          ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillText('—', x + colW / 2 - 6, yPos + 66);
+        }
+
+        // Bloque POS
+        if (dPos) {
+          ctx.fillStyle = '#475569';
+          ctx.font = '700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillText(`💤 POS: ${dPos.slice(0, 15)}`, x + 12, yPos + 114);
+        }
+      }
+    }
+
+    // Pie de página
+    ctx.fillStyle = '#64748B';
+    ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(`Generado desde UroTec • ${new Date().toLocaleDateString('es-MX')}`, gridMarginX, height - 22);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `Guardias_UroTec_${monthStr}.png`;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Autollenar ÚNICAMENTE el mes seleccionado según su propio ciclo ABCD y respetando sus reglas de Fin Libre
@@ -354,7 +530,6 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     if (!canManage) return;
     setSaving(true);
     try {
-      // Asegurar que ninguna fecha previa a octubre se guarde en schedule
       const cleanSchedule = {};
       Object.keys(schedule).forEach(dStr => {
         if (dStr >= minOctoberDate && schedule[dStr]?.guardia) {
@@ -362,7 +537,6 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
         }
       });
 
-      // Mantener sincronizados los campos raíz con los del mes en curso para los dropdowns activos de la app
       const curMonthCfg = monthsData[currentMonthStr] || {
         residents: currentRot.residents || [],
         cycleOrder: currentRot.cycleOrder || [],
@@ -391,29 +565,38 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Cabecera */}
-        <div className="bg-slate-900 text-white p-3.5 flex justify-between items-center">
-          <div>
-            <h3 className="font-black text-sm sm:text-base flex items-center gap-1.5">
-              <Calendar size={16} className="text-orange-400" />
-              Calendario de Guardias y Rotación HZH
+    <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-1 sm:p-4 backdrop-blur-sm">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[95vh]">
+        {/* Cabecera con botón de Descargar Calendario */}
+        <div className="bg-slate-900 text-white px-3 py-2.5 sm:p-3.5 flex justify-between items-center gap-2">
+          <div className="min-w-0">
+            <h3 className="font-black text-sm sm:text-base flex items-center gap-1.5 truncate">
+              <Calendar size={16} className="text-orange-400 flex-shrink-0" />
+              <span>Calendario de Guardias</span>
             </h3>
-            <p className="text-[11px] text-slate-400">
-              Guardias por mes (meses pasados guardados y bloqueados; meses futuros en blanco hasta generarlos)
+            <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+              Rol mensual ABCD, Fines Libres y Rotación HZH
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white p-1">
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={handleDownloadCalendar}
+              className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black flex items-center gap-1 shadow-sm transition"
+              title="Descargar imagen del calendario de guardias"
+            >
+              <Download size={13} />
+              <span>Descargar</span>
+            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white p-1">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Selector de mes y pestañas */}
-        <div className="p-2.5 bg-slate-50 dark:bg-slate-900/60 border-b border-gray-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+        <div className="px-2 py-2 sm:p-2.5 bg-slate-50 dark:bg-slate-900/60 border-b border-gray-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-1.5">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <Calendar size={14} className="text-orange-500" />
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Mes:</span>
             <input
               type="month"
               value={monthStr}
@@ -424,19 +607,19 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
               className="px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
             />
             {isPastMonth && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-black">
-                <Lock size={11} />
-                {isBeforeOctober ? 'Previo a Oct (En blanco)' : 'Mes pasado (Solo lectura)'}
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-black">
+                <Lock size={10} />
+                {isBeforeOctober ? 'En blanco' : 'Cerrado'}
               </span>
             )}
             {isCurrentMonth && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black">
-                Mes en curso
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black">
+                Mes actual
               </span>
             )}
             {isFutureMonth && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-black">
-                {hasAssignedGuardsInMonth ? 'Mes futuro (Configurado)' : 'Mes futuro (En blanco)'}
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-black">
+                {hasAssignedGuardsInMonth ? 'Futuro' : 'En blanco'}
               </span>
             )}
           </div>
@@ -445,21 +628,21 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
             <button
               type="button"
               onClick={() => setActiveSection('calendar')}
-              className={`px-2.5 py-1 rounded-md transition ${activeSection === 'calendar' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-600 dark:text-slate-300'}`}
+              className={`px-2 py-1 rounded-md transition ${activeSection === 'calendar' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-600 dark:text-slate-300'}`}
             >
-              📅 Calendario
+              📅 Mes
             </button>
             <button
               type="button"
               onClick={() => setActiveSection('guards')}
-              className={`px-2.5 py-1 rounded-md transition ${activeSection === 'guards' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-gray-600 dark:text-slate-300'}`}
+              className={`px-2 py-1 rounded-md transition ${activeSection === 'guards' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-gray-600 dark:text-slate-300'}`}
             >
-              🔄 Rol ABCD / Fin Libre
+              🔄 ABCD / Libre
             </button>
             <button
               type="button"
               onClick={() => setActiveSection('rotation')}
-              className={`px-2.5 py-1 rounded-md transition ${activeSection === 'rotation' ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-gray-600 dark:text-slate-300'}`}
+              className={`px-2 py-1 rounded-md transition ${activeSection === 'rotation' ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-gray-600 dark:text-slate-300'}`}
             >
               📍 HZH ({selectedHzh.length})
             </button>
@@ -467,38 +650,50 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
         </div>
 
         {/* Contenido scrolleable */}
-        <div className="p-3 sm:p-4 overflow-y-auto flex-1 space-y-3">
+        <div className="px-1.5 py-2.5 sm:p-4 overflow-y-auto flex-1 space-y-2.5">
           {/* =================================================================
               SECCIÓN 1: CALENDARIO VISUAL DE GUARDIAS (POP-UP PRINCIPAL)
              ================================================================= */}
           {activeSection === 'calendar' && (
-            <div className="space-y-3">
-              {/* Leyenda superior */}
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 px-2.5 py-1.5 rounded-lg border border-gray-100 dark:border-slate-700">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span>🛡️ Guardia del día</span>
-                  <span>💤 Posguardia (Guardia de ayer)</span>
-                  <span className="text-emerald-600 dark:text-emerald-400">🏖️ Fin Libre</span>
+            <div className="space-y-2.5">
+              {/* Barra compacta con leyenda + switch Cuadrícula/Lista para celular */}
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 px-2 py-1.5 rounded-lg border border-gray-100 dark:border-slate-700">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>🛡️ Guardia</span>
+                  <span>💤 POS</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">🏖️ Libre</span>
+                  {canEditMonth && hasAssignedGuardsInMonth && isFutureMonth && (
+                    <button
+                      type="button"
+                      onClick={clearMonthGuards}
+                      className="text-red-500 hover:text-red-700 underline flex items-center gap-0.5 ml-1"
+                      title="Dejar este mes futuro en blanco"
+                    >
+                      <RotateCcw size={10} /> Vaciar
+                    </button>
+                  )}
                 </div>
-                {canEditMonth ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-blue-600 dark:text-blue-400">Toca un día para asignar guardia</span>
-                    {hasAssignedGuardsInMonth && isFutureMonth && (
-                      <button
-                        type="button"
-                        onClick={clearMonthGuards}
-                        className="text-red-500 hover:text-red-700 underline flex items-center gap-0.5"
-                        title="Dejar este mes futuro en blanco"
-                      >
-                        <RotateCcw size={10} /> Vaciar mes
-                      </button>
-                    )}
+
+                <div className="flex items-center gap-1 ml-auto">
+                  <div className="flex bg-gray-200/80 dark:bg-slate-700 p-0.5 rounded-md text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setCalDisplayMode('grid')}
+                      className={`px-1.5 py-0.5 rounded flex items-center gap-0.5 ${calDisplayMode === 'grid' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-600 dark:text-slate-300'}`}
+                      title="Vista calendario mensual"
+                    >
+                      <LayoutGrid size={11} /> Mes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCalDisplayMode('list')}
+                      className={`px-1.5 py-0.5 rounded flex items-center gap-0.5 ${calDisplayMode === 'list' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-600 dark:text-slate-300'}`}
+                      title="Vista lista con nombres completos"
+                    >
+                      <List size={11} /> Lista
+                    </button>
                   </div>
-                ) : isPastMonth ? (
-                  <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                    <Lock size={11} /> Mes cerrado (no editable)
-                  </span>
-                ) : null}
+                </div>
               </div>
 
               {/* Editor rápido al tocar un día del calendario (solo si el mes es editable) */}
@@ -507,16 +702,16 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                 const currentP = getAutoPosguardiaForDay(selectedCalDate);
                 const activeFree = getFreeWeekendRulesForDate(selectedCalDate, freeWeekends);
                 return (
-                  <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 animate-in fade-in">
-                    <div className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <div className="bg-blue-50/90 dark:bg-blue-950/50 border border-blue-300 dark:border-blue-800 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2 animate-in fade-in">
+                    <div className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
                       <span>📅 {selectedCalDate}</span>
                       {activeFree.length > 0 && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-black">
-                          🏖️ Fin Libre: {activeFree.map(r => r.resident).join(', ')}
+                          🏖️ {activeFree.map(r => r.resident).join(', ')}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <label className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400">🛡️ Guardia:</label>
                       <select
                         value={currentG}
@@ -529,19 +724,19 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                           <optgroup label="📍 Rotando en HZH">
                             {selectedHzh.map(r => {
                               const isFree = activeFree.some(rule => normalizeText(rule.resident) === normalizeText(r));
-                              return <option key={r} value={r} disabled={isFree}>{r}{isFree ? ' (🏖️ Fin Libre)' : ''}</option>;
+                              return <option key={r} value={r} disabled={isFree}>{r}{isFree ? ' (🏖️ Libre)' : ''}</option>;
                             })}
                           </optgroup>
                         )}
                         <optgroup label="Todos">
                           {allOrdered.map(r => {
                             const isFree = activeFree.some(rule => normalizeText(rule.resident) === normalizeText(r));
-                            return <option key={r} value={r} disabled={isFree}>{r}{isFree ? ' (🏖️ Fin Libre)' : ''}</option>;
+                            return <option key={r} value={r} disabled={isFree}>{r}{isFree ? ' (🏖️ Libre)' : ''}</option>;
                           })}
                         </optgroup>
                       </select>
                       <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
-                        💤 Pos: {currentP || '—'}
+                        💤 POS: {currentP || '—'}
                       </span>
                       <button
                         type="button"
@@ -555,91 +750,166 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                 );
               })()}
 
-              {/* Cuadrícula Mensual 7 columnas (Dom - Sáb) */}
-              <div>
-                <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 mb-1">
-                  <div>Dom</div>
-                  <div>Lun</div>
-                  <div>Mar</div>
-                  <div>Mié</div>
-                  <div>Jue</div>
-                  <div>Vie</div>
-                  <div>Sáb</div>
+              {/* VISTA A: CUADRÍCULA MENSUAL DE 7 COLUMNAS OPTIMIZADA PARA CELULAR */}
+              {calDisplayMode === 'grid' ? (
+                <div>
+                  <div className="grid grid-cols-7 gap-0.5 sm:gap-1 text-center text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 mb-1">
+                    <div>Dom</div>
+                    <div>Lun</div>
+                    <div>Mar</div>
+                    <div>Mié</div>
+                    <div>Jue</div>
+                    <div>Vie</div>
+                    <div>Sáb</div>
+                  </div>
+                  <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
+                    {calendarCells.map((cell, idx) => {
+                      if (!cell) {
+                        return <div key={`empty-${idx}`} className="min-h-[74px] sm:min-h-[80px] rounded-lg bg-slate-50/40 dark:bg-slate-900/20" />;
+                      }
+                      const dGuard = getGuardForDay(cell.dateStr);
+                      const dPos = getAutoPosguardiaForDay(cell.dateStr);
+                      const freeRules = isBeforeOctober ? [] : getFreeWeekendRulesForDate(cell.dateStr, freeWeekends);
+                      const gProf = dGuard ? getMemberProfile(dGuard, settingsMeta) : null;
+                      const isToday = cell.dateStr === today;
+                      const isSelected = cell.dateStr === selectedCalDate;
+                      const isWeekend = cell.dow === 0 || cell.dow === 6;
+
+                      const shortGuardName = formatMobileGuardName(dGuard);
+                      const shortPosName = formatMobileGuardName(dPos);
+
+                      return (
+                        <div
+                          key={cell.dateStr}
+                          onClick={() => canEditMonth && setSelectedCalDate(cell.dateStr === selectedCalDate ? null : cell.dateStr)}
+                          className={`min-h-[74px] sm:min-h-[80px] p-0.5 sm:p-1.5 rounded-lg border flex flex-col justify-between transition overflow-hidden ${
+                            canEditMonth ? 'cursor-pointer hover:border-blue-400' : ''
+                          } ${
+                            isSelected
+                              ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50/40 dark:bg-blue-950/40'
+                              : isToday
+                              ? 'border-blue-400 bg-blue-50/30 dark:bg-blue-900/20'
+                              : isWeekend
+                              ? 'bg-slate-50/90 dark:bg-slate-800/80 border-gray-200 dark:border-slate-700'
+                              : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700/80'
+                          }`}
+                        >
+                          {/* Fila superior: Número de día + indicador compacto de Fin Libre */}
+                          <div className="flex items-center justify-between px-0.5">
+                            <span className={`text-[10px] sm:text-[11px] font-black leading-none ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                              {cell.dayNum}
+                            </span>
+                            {freeRules.length > 0 && (
+                              <span
+                                className="text-[8px] sm:text-[9px] px-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold truncate max-w-[34px] sm:max-w-[54px]"
+                                title={`Fin Libre: ${freeRules.map(r => r.resident).join(', ')}`}
+                              >
+                                🏖️{formatMobileGuardName(freeRules[0].resident).slice(0, 3)}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Centro: Nombre de Guardia grande y claro en móvil */}
+                          <div className="my-0.5">
+                            {dGuard && gProf ? (
+                              <div
+                                className={`px-0.5 sm:px-1 py-0.5 sm:py-1 rounded border text-[9.5px] sm:text-[11px] font-black leading-[11px] sm:leading-tight text-center break-words ${gProf.colorObj.badge}`}
+                                title={`Guardia: ${dGuard}`}
+                              >
+                                <span className="sm:hidden">{shortGuardName}</span>
+                                <span className="hidden sm:inline">{dGuard}</span>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-gray-300 dark:text-slate-600 font-semibold text-center">—</div>
+                            )}
+                          </div>
+
+                          {/* Abajo: POS compacto */}
+                          <div className="min-h-[13px] flex items-center justify-center">
+                            {dPos ? (
+                              <div
+                                className="w-full px-0.5 rounded text-[8px] sm:text-[9.5px] font-bold text-slate-500 dark:text-slate-400 truncate text-center leading-tight"
+                                title={`POS: ${dPos}`}
+                              >
+                                <span className="text-indigo-500 dark:text-indigo-400 font-black">POS:</span>{' '}
+                                <span className="sm:hidden">{shortPosName}</span>
+                                <span className="hidden sm:inline">{dPos}</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {calendarCells.map((cell, idx) => {
-                    if (!cell) {
-                      return <div key={`empty-${idx}`} className="min-h-[68px] rounded-lg bg-slate-50/40 dark:bg-slate-900/20" />;
-                    }
-                    const dGuard = getGuardForDay(cell.dateStr);
-                    const dPos = getAutoPosguardiaForDay(cell.dateStr);
-                    const freeRules = isBeforeOctober ? [] : getFreeWeekendRulesForDate(cell.dateStr, freeWeekends);
+              ) : (
+                /* VISTA B: LISTA DÍA POR DÍA (NOMBRES COMPLETOS EN GRANDE PARA CELULAR) */
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {daysInMonth.map(day => {
+                    const dGuard = getGuardForDay(day.dateStr);
+                    const dPos = getAutoPosguardiaForDay(day.dateStr);
+                    const freeRules = isBeforeOctober ? [] : getFreeWeekendRulesForDate(day.dateStr, freeWeekends);
                     const gProf = dGuard ? getMemberProfile(dGuard, settingsMeta) : null;
                     const pProf = dPos ? getMemberProfile(dPos, settingsMeta) : null;
-                    const isToday = cell.dateStr === today;
-                    const isSelected = cell.dateStr === selectedCalDate;
-                    const isWeekend = cell.dow === 0 || cell.dow === 6;
+                    const isWeekend = day.dow === 0 || day.dow === 6;
 
                     return (
                       <div
-                        key={cell.dateStr}
-                        onClick={() => canEditMonth && setSelectedCalDate(cell.dateStr === selectedCalDate ? null : cell.dateStr)}
-                        className={`min-h-[68px] p-1 rounded-lg border flex flex-col justify-between transition ${
+                        key={day.dateStr}
+                        onClick={() => canEditMonth && setSelectedCalDate(day.dateStr === selectedCalDate ? null : day.dateStr)}
+                        className={`p-2 rounded-xl border flex items-center justify-between gap-2 ${
                           canEditMonth ? 'cursor-pointer hover:border-blue-400' : ''
                         } ${
-                          isSelected
-                            ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50/40 dark:bg-blue-950/40'
-                            : isToday
-                            ? 'border-blue-400 bg-blue-50/30 dark:bg-blue-900/20'
-                            : isWeekend
-                            ? 'bg-slate-50/90 dark:bg-slate-800/80 border-gray-200 dark:border-slate-700'
-                            : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700/80'
+                          isWeekend
+                            ? 'bg-slate-50 dark:bg-slate-800/80 border-gray-200 dark:border-slate-700'
+                            : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className={`text-[10px] font-black leading-none ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {cell.dayNum}
+                        <div className="flex items-center gap-2 min-w-[64px]">
+                          <span className="text-xs font-black text-slate-800 dark:text-white w-6 text-center bg-slate-100 dark:bg-slate-700 py-1 rounded-lg">
+                            {day.dayNum}
                           </span>
-                          {freeRules.length > 0 && (
-                            <span
-                              className="text-[9px] px-1 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold truncate max-w-[48px]"
-                              title={`Fin Libre: ${freeRules.map(r => r.resident).join(', ')}`}
-                            >
-                              🏖️{freeRules[0].resident.slice(0, 4)}
-                            </span>
-                          )}
+                          <div>
+                            <div className="text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                              {day.weekday}
+                            </div>
+                            {freeRules.length > 0 && (
+                              <div className="text-[9px] font-black text-emerald-600 dark:text-emerald-400">
+                                🏖️ {freeRules.map(r => formatMobileGuardName(r.resident)).join(', ')}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="space-y-0.5 mt-1">
-                          {/* Guardia */}
-                          {dGuard && gProf ? (
-                            <div
-                              className={`px-1 py-0.5 rounded border text-[9px] font-black truncate flex items-center gap-1 ${gProf.colorObj.badge}`}
-                              title={`Guardia: ${dGuard}`}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${gProf.colorObj.dot}`} />
-                              <span className="truncate">{dGuard}</span>
-                            </div>
-                          ) : (
-                            <div className="text-[9px] text-gray-300 dark:text-slate-600 font-semibold text-center">—</div>
-                          )}
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-black text-orange-600 dark:text-orange-400">🛡️</span>
+                            {dGuard && gProf ? (
+                              <span className={`px-2 py-0.5 rounded-md border text-xs font-black flex items-center gap-1 ${gProf.colorObj.badge}`}>
+                                <span className={`w-2 h-2 rounded-full ${gProf.colorObj.dot}`} />
+                                {dGuard}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 font-semibold">—</span>
+                            )}
+                          </div>
 
-                          {/* Posguardia */}
-                          {dPos && pProf && (
-                            <div
-                              className="px-1 py-0.2 rounded text-[8px] font-bold text-slate-500 dark:text-slate-400 truncate flex items-center gap-0.5 opacity-85"
-                              title={`Posguardia: ${dPos}`}
-                            >
-                              <span>💤</span>
-                              <span className="truncate">{dPos}</span>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400">POS:</span>
+                            {dPos && pProf ? (
+                              <span className={`px-1.5 py-0.5 rounded-md border text-[11px] font-bold opacity-90 ${pProf.colorObj.badge}`}>
+                                {dPos}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-gray-400">—</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
+              )}
 
               {/* Resumen de Fines Libres del Mes debajo del Calendario */}
               {freeWeekends.length > 0 && (
@@ -689,7 +959,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                 </div>
               )}
 
-              {/* Regla de Fin Libre (para que ese fin la persona seleccionada no tenga guardias) */}
+              {/* Regla de Fin Libre */}
               <div className="bg-emerald-50/60 dark:bg-emerald-950/25 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/60 space-y-2.5">
                 <div>
                   <span className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
@@ -804,7 +1074,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                 )}
               </div>
 
-              {/* Generador automático por ciclo ABCD (solo visible si puede editar este mes) */}
+              {/* Generador automático por ciclo ABCD */}
               {canEditMonth && (
                 <div className="bg-slate-50 dark:bg-slate-700/40 p-3 rounded-xl border border-gray-200 dark:border-slate-600 space-y-2">
                   <div className="flex flex-wrap justify-between items-center gap-1.5">
@@ -852,7 +1122,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                   ) : (
                     <div className="space-y-1">
                       {effectiveCycle.map((resName, idx) => {
-                        const slotLetter = String.fromCharCode(65 + idx); // A, B, C, D...
+                        const slotLetter = String.fromCharCode(65 + idx);
                         const prof = getMemberProfile(resName, settingsMeta);
                         return (
                           <div key={`${slotLetter}-${idx}`} className="flex items-center justify-between gap-2 bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-slate-600 text-xs">
@@ -951,7 +1221,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
         </div>
 
         {/* Footer botones */}
-        <div className="p-3 bg-gray-50 dark:bg-slate-900/80 border-t border-gray-200 dark:border-slate-700 flex gap-2">
+        <div className="p-2.5 sm:p-3 bg-gray-50 dark:bg-slate-900/80 border-t border-gray-200 dark:border-slate-700 flex gap-2">
           <button
             type="button"
             onClick={onClose}

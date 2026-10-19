@@ -566,10 +566,10 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
               </div>
             </div>
 
-            {/* Indicador de Guardia y Posguardia HZH para el día seleccionado */}
-            <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
-                <div className="flex flex-wrap items-center gap-2">
+            {/* Indicador de Guardia y POS HZH para el día seleccionado */}
+            <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 rounded-lg px-2 py-1.5">
+              <div className="flex items-center justify-between gap-1.5 text-[11px]">
+                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                   {/* Badge Guardia */}
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 flex items-center gap-0.5">
@@ -584,16 +584,16 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                         </span>
                       );
                     })() : (
-                      <span className="text-[10px] font-semibold text-gray-400">Sin asignar</span>
+                      <span className="text-[10px] font-semibold text-gray-400">—</span>
                     )}
                   </div>
 
                   <span className="text-gray-300 dark:text-slate-600">|</span>
 
-                  {/* Badge Posguardia (100% automático según guardia de ayer) */}
+                  {/* Badge POS (100% automático según guardia de ayer) */}
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 flex items-center gap-0.5">
-                      💤 Posguardia:
+                      💤 POS:
                     </span>
                     {selectedDayGuard.posguardia ? (() => {
                       const pgProf = getMemberProfile(selectedDayGuard.posguardia, settingsMeta);
@@ -604,7 +604,7 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                         </span>
                       );
                     })() : (
-                      <span className="text-[10px] font-semibold text-gray-400">Sin asignar</span>
+                      <span className="text-[10px] font-semibold text-gray-400">—</span>
                     )}
                   </div>
 
@@ -612,7 +612,7 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                     <>
                       <span className="text-gray-300 dark:text-slate-600">|</span>
                       <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                        🏖️ Fin libre: {selectedDayGuard.freeResidents.join(', ')}
+                        🏖️ {selectedDayGuard.freeResidents.join(', ')}
                       </span>
                     </>
                   )}
@@ -621,10 +621,11 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                 {onOpenRotation && (
                   <button
                     onClick={onOpenRotation}
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition flex items-center gap-1 ml-auto"
-                    title="Abrir calendario de guardias"
+                    className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition flex items-center justify-center flex-shrink-0 ml-auto"
+                    title="Calendario de Guardias"
+                    aria-label="Calendario de Guardias"
                   >
-                    <CalendarIcon size={12} /> Calendario de Guardias
+                    <CalendarIcon size={15} />
                   </button>
                 )}
               </div>

@@ -189,30 +189,30 @@ export default function App() {
 
         <header className="bg-black text-white p-3 border-b border-gray-800">
           <div className="max-w-5xl mx-auto">
-              <div className="flex justify-between items-center mb-2">
-                  <h1 className="text-lg font-bold">Urología TecSalud</h1>
-                  <div className="text-xs flex items-center font-mono bg-gray-800 p-1 rounded">
+              <div className="flex justify-between items-center gap-2 mb-2">
+                  <h1 className="text-lg font-bold tracking-tight whitespace-nowrap">UroTec</h1>
+                  <div className="text-xs flex items-center font-mono bg-gray-800 p-1 rounded min-w-0">
                       <button
                           onClick={() => setShowRotationModal(true)}
-                          className="px-1.5 py-1 rounded transition mr-1 text-orange-400 hover:bg-orange-950/50 flex items-center gap-1 font-sans font-bold text-[10px]"
+                          className="px-1.5 py-1 rounded transition mr-1 text-orange-400 hover:bg-orange-950/50 flex items-center gap-1 font-sans font-bold text-[10px] flex-shrink-0"
                           title="Rotación HZH y Rol de Guardias"
                       >
                           <MapPin size={13}/> HZH
                       </button>
-                      <button onClick={()=>setReaderMode(!readerMode)} className={`p-1 rounded transition mr-1 ${readerMode?'text-amber-500 bg-amber-900/30':'text-gray-400 hover:text-white'}`} title="Modo Lectura (Kindle)">
+                      <button onClick={()=>setReaderMode(!readerMode)} className={`p-1 rounded transition mr-1 flex-shrink-0 ${readerMode?'text-amber-500 bg-amber-900/30':'text-gray-400 hover:text-white'}`} title="Modo Lectura (Kindle)">
                           <BookOpen size={16}/>
                       </button>
-                      <button onClick={()=>setPrivacyMode(!privacyMode)} className={`p-1 rounded transition ${privacyMode?'text-red-400 bg-red-900/30':'text-gray-400 hover:text-white'}`} title="Modo Privacidad">
+                      <button onClick={()=>setPrivacyMode(!privacyMode)} className={`p-1 rounded transition flex-shrink-0 ${privacyMode?'text-red-400 bg-red-900/30':'text-gray-400 hover:text-white'}`} title="Modo Privacidad">
                           {privacyMode ? <EyeOff size={16}/> : <Eye size={16}/>}
                       </button>
-                      <span className="uppercase text-gray-200 mx-1.5 border-l border-gray-600 pl-2 flex items-center gap-1">
-                          <span className={`w-2 h-2 rounded-full ${currentUserProfile.colorObj.dot}`} />
-                          {getUserName()}
+                      <span className="uppercase text-gray-200 mx-1.5 border-l border-gray-600 pl-2 flex items-center gap-1 truncate">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${currentUserProfile.colorObj.dot}`} />
+                          <span className="truncate max-w-[90px] sm:max-w-none">{getUserName()}</span>
                           {currentUserProfile.roleShort && currentUserProfile.isResident && (
-                              <span className="text-[9px] font-black px-1 rounded bg-gray-700 text-gray-300">{currentUserProfile.roleShort}</span>
+                              <span className="text-[9px] font-black px-1 rounded bg-gray-700 text-gray-300 flex-shrink-0">{currentUserProfile.roleShort}</span>
                           )}
                       </span>
-                      <button onClick={handleLogout} className="text-gray-400 hover:text-white p-1"><LogOut size={14}/></button>
+                      <button onClick={handleLogout} className="text-gray-400 hover:text-white p-1 flex-shrink-0"><LogOut size={14}/></button>
                   </div>
               </div>
               <nav className="flex space-x-2 overflow-x-auto pb-1">
