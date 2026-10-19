@@ -21,6 +21,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
   const [somatoForm, setSomatoForm] = useState({ weight: '', height: '' });
   const [vitalForm, setVitalForm] = useState({ ta: '', fc: '', fr: '', temp: '', sat: '' });
   const [egoForm, setEgoForm] = useState({ isPathological: false, aspect: '', ph: '', density: '', color: '', blood: '', proteins: '', glucose: '', rbc: '', wbc: '', yeast: '', nitrites: '', cultureSent: false });
+  const [reactantesForm, setReactantesForm] = useState({ pcr: '', procalcitonina: '' });
   const [simpleNote, setSimpleNote] = useState('');
   const [newTask, setNewTask] = useState('');
   const [labForm, setLabForm] = useState({ hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
@@ -35,6 +36,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
       else if (note.type === 'somatometria') setSomatoForm(note.content);
       else if (note.type === 'vitales') setVitalForm(note.content);
       else if (note.type === 'laboratorios') setLabForm(note.content);
+      else if (note.type === 'reactantes') setReactantesForm(note.content);
       else if (note.type === 'ego') setEgoForm(note.content);
       else setSimpleNote(note.content.text);
       window.scrollTo({ top: 300, behavior: 'smooth' });
@@ -44,11 +46,14 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
       setEditingNote(null);
       setVisitForm({ subj: '', ta: '', fc: '', temp: '', gu: '', drains: '', plan: '', hb: '', leu: '', plq: '', glu: '', cr: '', bun: '', na: '', k: '', cl: '', tp: '', ttp: '', inr: '', hto: '' });
       setEgoForm({ isPathological: false, aspect: '', ph: '', density: '', color: '', blood: '', proteins: '', glucose: '', rbc: '', wbc: '', yeast: '', nitrites: '', cultureSent: false });
+      setReactantesForm({ pcr: '', procalcitonina: '' });
       setSimpleNote('');
   };
 
   const antecedents = patient.antecedents || { dm: false, has: false, cancer: false, other: '' };
   const allergies = patient.allergies || 'Negadas';
+  const cleanAllergies = String(patient.allergies || '').trim().toLowerCase();
+  const hasAllergy = cleanAllergies !== '' && !['negadas', 'negada', 'negado', 'ninguna', 'ninguno', 'no', 'sin alergias', 's/a', 'n/a', 'na', '-'].includes(cleanAllergies);
   const notesReversed = useMemo(() => (patient.notes || []).slice().reverse(), [patient.notes]);
   const lastSomato = notesReversed.find(n => n.type === 'somatometria')?.content;
   const lastSonda = notesReversed.find(n => n.type === 'sonda')?.content;
@@ -59,9 +64,9 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
     const q = normalizeText(noteSearch);
     return notesReversed.filter(n => {
       if (noteCategory === 'visita' && n.type !== 'visita') return false;
-      if (noteCategory === 'labs' && n.type !== 'laboratorios' && n.type !== 'ego') return false;
-      if (noteCategory === 'infeccioso' && n.type !== 'cultivos' && n.type !== 'antibiotico') return false;
-      if (noteCategory === 'otros' && ['visita', 'laboratorios', 'ego', 'cultivos', 'antibiotico'].includes(n.type)) return false;
+      if (noteCategory === 'labs' && !['laboratorios', 'ego', 'reactantes'].includes(n.type)) return false;
+      if (noteCategory === 'infeccioso' && !['cultivos', 'antibiotico', 'reactantes'].includes(n.type)) return false;
+      if (noteCategory === 'otros' && ['visita', 'laboratorios', 'ego', 'reactantes', 'cultivos', 'antibiotico'].includes(n.type)) return false;
 
       if (q) {
         const textBlob = normalizeText(`${n.type || ''} ${n.author || ''} ${JSON.stringify(n.content || {})}`);
@@ -103,6 +108,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
       let content = {};
       if (noteType === 'visita') { if(!visitForm.subj) return alert("Falta subjetivo"); content = { ...visitForm }; } 
       else if (noteType === 'laboratorios') { content = { ...labForm }; }
+      else if (noteType === 'reactantes') { if(!reactantesForm.pcr && !reactantesForm.procalcitonina) return alert("Ingresa PCR o Procalcitonina"); content = { ...reactantesForm }; }
       else if (noteType === 'vitales') { if(!vitalForm.ta && !vitalForm.fc) return alert("Faltan datos"); content = { ...vitalForm }; }
       else if (noteType === 'sonda') { if(!sondaForm.fr) return alert("Ingresa el calibre"); content = { ...sondaForm }; }
       else if (noteType === 'cultivos') { content = { ...cultureForm }; }
@@ -181,14 +187,18 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
 
   return (
     <div className="bg-gray-50 dark:bg-slate-900 min-h-full pb-20 transition-colors">
-      <div className={`border-b border-blue-100 dark:border-slate-700 p-3 sticky top-0 z-20 flex gap-1.5 items-center shadow-sm ${patient.readyForDischarge ? 'bg-emerald-50 dark:bg-emerald-950' : patient.preDischarge ? 'bg-purple-50 dark:bg-purple-900' : 'bg-white dark:bg-slate-800'}`}>
+      <div className={`border-b border-blue-100 dark:border-slate-700 p-3 flex gap-1.5 items-center shadow-sm rounded-t-xl ${patient.readyForDischarge ? 'bg-emerald-50 dark:bg-emerald-950' : patient.preDischarge ? 'bg-purple-50 dark:bg-purple-900' : 'bg-white dark:bg-slate-800'}`}>
           <button onClick={onClose} className="pr-1"><ArrowLeft className="text-slate-600 dark:text-slate-300"/></button>
           <div className="flex-1 min-w-0">
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-none truncate">{applyPrivacy(patient.name, privacyMode, 'name')}</h2>
               <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex flex-wrap gap-1.5 items-center">
                   <span>{applyPrivacy(patient.bed, privacyMode, 'bed')} {patient.hospital && `(${patient.hospital})`} • {calculateAge(patient.dob)}a</span>
+                  {patient.type && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 uppercase bg-white dark:bg-slate-700 dark:text-white">{patient.type}</span>}
+                  {antecedents.dm && <span className="w-4 h-4 rounded bg-sky-600 text-white text-[10px] font-black inline-flex items-center justify-center shadow-sm" title="Diabético (DM)">D</span>}
+                  {antecedents.has && <span className="w-4 h-4 rounded bg-orange-500 text-white text-[10px] font-black inline-flex items-center justify-center shadow-sm" title="Hipertenso (HAS)">H</span>}
+                  {hasAllergy && <span className="w-4 h-4 rounded bg-red-600 text-white text-[10px] font-black inline-flex items-center justify-center shadow-sm" title={`Alergias: ${patient.allergies}`}>A</span>}
                   {bmi && <span className="bg-white dark:bg-slate-700 px-1 rounded font-bold text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-slate-600">IMC: {bmi}</span>}
-                  {patient.readyForDischarge && <span className="bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">✅ ALTA EN CAMA</span>}
+                  {patient.readyForDischarge && <span className="bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">✅ ALTA</span>}
               </div>
           </div>
           
@@ -207,8 +217,8 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
       <div className="p-3 space-y-4 bg-gray-50 dark:bg-slate-900 min-h-screen">
           <div className="bg-white dark:bg-slate-800 border border-blue-50 dark:border-slate-700 rounded p-3 text-xs shadow-md dark:shadow-sm text-slate-900 dark:text-slate-200">
              <div className="flex flex-wrap gap-1.5 mb-1.5">
-                 {antecedents.dm && <span className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-0.5 rounded font-bold">DM</span>}
-                 {antecedents.has && <span className="bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 px-2 py-0.5 rounded font-bold">HAS</span>}
+                 {antecedents.dm && <span className="bg-sky-100 dark:bg-sky-900/60 text-sky-800 dark:text-sky-200 px-2 py-0.5 rounded font-bold">DM</span>}
+                 {antecedents.has && <span className="bg-orange-100 dark:bg-orange-900/60 text-orange-800 dark:text-orange-200 px-2 py-0.5 rounded font-bold">HAS</span>}
                  {antecedents.cancer && <span className="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-2 py-0.5 rounded font-bold">ONCO</span>}
                  {lastAbx && (
                      <span className="bg-fuchsia-100 dark:bg-fuchsia-900/50 text-fuchsia-800 dark:text-fuchsia-200 px-2 py-0.5 rounded font-bold">
@@ -222,7 +232,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
                  )}
              </div>
              {antecedents.other && <p className="text-gray-600 dark:text-gray-400"><strong>Ant:</strong> {antecedents.other}</p>}
-             {allergies && allergies !== 'Negadas' && <p className="text-red-600 dark:text-red-400 mt-1"><strong>Alergias:</strong> {allergies}</p>}
+             {hasAllergy && <p className="text-red-600 dark:text-red-400 mt-1"><strong>Alergias:</strong> {allergies}</p>}
              <p className="text-gray-500 dark:text-gray-400 mt-1"><strong>Dx:</strong> {patient.diagnosis}</p>
              <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400 mt-2 pt-1.5 border-t border-gray-100 dark:border-slate-700">
                  <span><strong>Tratante:</strong> {applyPrivacy(patient.doctor || 'S/A', privacyMode, 'name')}</span>
@@ -247,7 +257,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
               <div className="flex justify-between mb-2 items-center">
                   <label className="text-xs font-bold text-slate-400 uppercase">{editingNote ? 'Editando Nota' : 'Nueva Entrada'}</label>
                   <select className="text-xs border border-gray-200 dark:border-slate-600 rounded p-1 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white" value={noteType} onChange={e=>setNoteType(e.target.value)} disabled={!!editingNote}>
-                      <option value="visita">Visita Diaria</option><option value="laboratorios">Laboratorios</option><option value="ego">EGO</option><option value="vitales">Signos Vitales</option><option value="somatometria">Peso y Talla</option><option value="cultivos">Cultivos</option><option value="antibiotico">Antibiótico</option><option value="procedimiento">Procedimiento</option><option value="imagen">Imagen (URL)</option><option value="sonda">Sonda/Drenaje</option><option value="texto">Nota Libre</option>
+                      <option value="visita">Visita Diaria</option><option value="laboratorios">Laboratorios</option><option value="reactantes">Reactantes</option><option value="ego">EGO</option><option value="vitales">Signos Vitales</option><option value="somatometria">Peso y Talla</option><option value="cultivos">Cultivos</option><option value="antibiotico">Antibiótico</option><option value="procedimiento">Procedimiento</option><option value="imagen">Imagen (URL)</option><option value="sonda">Sonda/Drenaje</option><option value="texto">Nota Libre</option>
                   </select>
               </div>
               
@@ -262,6 +272,23 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
               )}
               {noteType === 'laboratorios' && (
                   <div className="space-y-2"><div className="p-2 border rounded bg-slate-50 dark:bg-slate-700"><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Laboratorios</p><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Hb" className={inputClass} value={labForm.hb} onChange={e=>setLabForm({...labForm, hb:e.target.value})}/><input placeholder="Leu" className={inputClass} value={labForm.leu} onChange={e=>setLabForm({...labForm, leu:e.target.value})}/><input placeholder="Plq" className={inputClass} value={labForm.plq} onChange={e=>setLabForm({...labForm, plq:e.target.value})}/></div><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Glu" className={inputClass} value={labForm.glu} onChange={e=>setLabForm({...labForm, glu:e.target.value})}/><input placeholder="Cr" className={inputClass} value={labForm.cr} onChange={e=>setLabForm({...labForm, cr:e.target.value})}/><input placeholder="BUN" className={inputClass} value={labForm.bun} onChange={e=>setLabForm({...labForm, bun:e.target.value})}/></div><div className="grid grid-cols-3 gap-1 mb-1"><input placeholder="Na" className={inputClass} value={labForm.na} onChange={e=>setLabForm({...labForm, na:e.target.value})}/><input placeholder="K" className={inputClass} value={labForm.k} onChange={e=>setLabForm({...labForm, k:e.target.value})}/><input placeholder="Cl" className={inputClass} value={labForm.cl} onChange={e=>setLabForm({...labForm, cl:e.target.value})}/></div></div></div>
+              )}
+              {noteType === 'reactantes' && (
+                  <div className="space-y-2">
+                      <div className="p-2.5 border dark:border-slate-600 rounded bg-slate-50 dark:bg-slate-700">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Reactantes de Fase Aguda</p>
+                          <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                  <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-1">PCR (mg/dL o mg/L)</label>
+                                  <input placeholder="Ej. 4.5" className={inputClass} value={reactantesForm.pcr || ''} onChange={e=>setReactantesForm({...reactantesForm, pcr:e.target.value})}/>
+                              </div>
+                              <div>
+                                  <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Procalcitonina (ng/mL)</label>
+                                  <input placeholder="Ej. 0.8" className={inputClass} value={reactantesForm.procalcitonina || ''} onChange={e=>setReactantesForm({...reactantesForm, procalcitonina:e.target.value})}/>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
               )}
               {noteType === 'ego' && (
                   <div className="space-y-3">
@@ -327,7 +354,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
                           type="text"
                           value={noteSearch}
                           onChange={e => setNoteSearch(e.target.value)}
-                          placeholder="Buscar en notas, laboratorios, cultivos..."
+                          placeholder="Buscar en notas, laboratorios, reactantes, cultivos..."
                           className="w-full pl-8 pr-7 py-1.5 border border-gray-200 dark:border-slate-600 rounded text-xs bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                       />
                       {noteSearch && (
@@ -340,7 +367,7 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
                       {[
                           { id: 'all', label: `Todas (${notesReversed.length})` },
                           { id: 'visita', label: 'Visitas' },
-                          { id: 'labs', label: 'Labs / EGO' },
+                          { id: 'labs', label: 'Labs / React / EGO' },
                           { id: 'infeccioso', label: 'Cultivos / Abx' },
                           { id: 'otros', label: 'Sondas / Otros' }
                       ].map(cat => (
@@ -402,6 +429,17 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
                            </div>
                        ) : note.type === 'laboratorios' ? (
                            <div className="text-sm space-y-1"><LabGrid c={note.content}/></div>
+                       ) : note.type === 'reactantes' ? (
+                           <div className="grid grid-cols-2 gap-2 text-xs bg-amber-50/70 dark:bg-amber-950/30 p-2 rounded border border-amber-200 dark:border-amber-800/60 font-mono">
+                               <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded border border-amber-100 dark:border-slate-700">
+                                   <span className="font-bold text-amber-800 dark:text-amber-300">PCR:</span>
+                                   <span className="font-extrabold text-slate-900 dark:text-white">{note.content.pcr || '—'}</span>
+                               </div>
+                               <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded border border-amber-100 dark:border-slate-700">
+                                   <span className="font-bold text-rose-700 dark:text-rose-300">Procalcitonina:</span>
+                                   <span className="font-extrabold text-slate-900 dark:text-white">{note.content.procalcitonina || '—'}</span>
+                               </div>
+                           </div>
                        ) : note.type === 'vitales' ? (
                            <div className="text-sm space-y-1 font-mono bg-slate-50 dark:bg-slate-700 p-2 rounded">
                                <p>TA: {note.content.ta} mmHg</p><p>FC: {note.content.fc} lpm</p><p>FR: {note.content.fr} rpm</p><p>Temp: {note.content.temp}°C</p><p>SatO2: {note.content.sat}%</p>

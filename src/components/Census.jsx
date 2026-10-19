@@ -217,7 +217,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
   return (
     <div className="pb-24">
       {/* Barra superior ultra-compacta para móvil */}
-      <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700 mb-3 sticky top-0 z-10 transition-colors space-y-2">
+      <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700 mb-3 transition-colors space-y-2">
          {/* Fila 1: Buscador + Botón Filtros */}
          <div className="flex items-center gap-1.5">
              <div className="relative flex-1">
@@ -262,25 +262,25 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                  onClick={() => setQuickFilter(quickFilter === 'pending_visit' ? 'all' : 'pending_visit')}
                  className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'pending_visit' ? 'bg-red-600 text-white shadow-sm' : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60'}`}
              >
-                 🔴 Por pasar <span>({stats.pendingVisit})</span>
+                 🔴 Sin ver <span>({stats.pendingVisit})</span>
              </button>
              <button
                  onClick={() => setQuickFilter(quickFilter === 'ready_discharge' ? 'all' : 'ready_discharge')}
                  className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'ready_discharge' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'}`}
              >
-                 ✅ Alta en cama <span>({stats.readyDischarge})</span>
+                 ✅ Alta <span>({stats.readyDischarge})</span>
              </button>
              <button
                  onClick={() => setQuickFilter(quickFilter === 'pre_discharge' ? 'all' : 'pre_discharge')}
                  className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'pre_discharge' ? 'bg-purple-600 text-white shadow-sm' : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60'}`}
              >
-                 🟣 Pre-alta <span>({stats.preDischarge})</span>
+                 🟣 Prealta <span>({stats.preDischarge})</span>
              </button>
              <button
                  onClick={() => setQuickFilter(quickFilter === 'has_pending' ? 'all' : 'has_pending')}
                  className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'has_pending' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-yellow-50 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800/60'}`}
              >
-                 ⚠️ Pendientes <span>({stats.withPendingTasks})</span>
+                 ⚠️ Pend <span>({stats.withPendingTasks})</span>
              </button>
          </div>
 
@@ -325,6 +325,8 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
       <div className="grid grid-cols-1 gap-2.5">
          {filteredPatients.map(p => {
             const pendingTasksCount = (p.checklist || []).filter(t => !t.done).length;
+            const cleanAllergies = String(p.allergies || '').trim().toLowerCase();
+            const hasAllergy = cleanAllergies !== '' && !['negadas', 'negada', 'negado', 'ninguna', 'ninguno', 'no', 'sin alergias', 's/a', 'n/a', 'na', '-'].includes(cleanAllergies);
             return (
             <div key={p.id} onClick={() => setSelectedPatient(p)} className={`p-3 rounded-xl cursor-pointer active:scale-[0.99] transition ${getCardColor(p)}`}>
                <div className="flex justify-between items-start gap-2">
@@ -333,14 +335,29 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                         <span className="bg-black text-white px-2 py-0.5 rounded font-black text-base shadow-sm border border-slate-700">{applyPrivacy(p.bed, privacyMode, 'bed')}</span>
                         {p.hospital && <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-900 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">{p.hospital}</span>}
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 uppercase ${p.type==='NOVER'?'bg-gray-100 dark:bg-slate-700 text-gray-500':'bg-white dark:bg-slate-800 dark:text-white'}`}>{p.type}</span>
+                        {p.antecedents?.dm && (
+                            <span className="w-4 h-4 rounded bg-sky-600 text-white text-[10px] font-black inline-flex items-center justify-center shadow-sm" title="Diabético (DM)">
+                                D
+                            </span>
+                        )}
+                        {p.antecedents?.has && (
+                            <span className="w-4 h-4 rounded bg-orange-500 text-white text-[10px] font-black inline-flex items-center justify-center shadow-sm" title="Hipertenso (HAS)">
+                                H
+                            </span>
+                        )}
+                        {hasAllergy && (
+                            <span className="w-4 h-4 rounded bg-red-600 text-white text-[10px] font-black inline-flex items-center justify-center shadow-sm" title={`Alergias: ${p.allergies}`}>
+                                A
+                            </span>
+                        )}
                         {p.readyForDischarge && (
                             <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-sm flex items-center gap-1">
-                                ✅ ALTA EN CAMA
+                                ✅ ALTA
                             </span>
                         )}
                         {!p.readyForDischarge && p.preDischarge && (
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-200">
-                                PRE-ALTA
+                                PREALTA
                             </span>
                         )}
                         {pendingTasksCount > 0 && (

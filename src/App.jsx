@@ -128,11 +128,13 @@ export default function App() {
           />
       )}
 
+      <div className="fixed top-0 left-0 right-0 bg-black z-50 pointer-events-none" style={{ height: 'env(safe-area-inset-top)' }} />
+
       <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 relative ${readerMode ? 'e-ink-active bg-[#f8f9fa] text-black dark:bg-[#111] dark:text-white' : 'bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100'}`}>
         
         {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
 
-        <header className="bg-black text-white p-3 shadow-md sticky top-0 z-40 pt-safe">
+        <header className="bg-black text-white p-3 border-b border-gray-800 sticky top-0 z-40 pt-safe">
           <div className="max-w-5xl mx-auto">
               <div className="flex justify-between items-center mb-2">
                   <h1 className="text-lg font-bold">Urología TecSalud</h1>
@@ -160,7 +162,7 @@ export default function App() {
           {view === 'discharges' && <Discharges user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
         </main>
         <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v81.0 Pro</span>
+          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v81.1 Pro</span>
           <button onClick={() => setShowAdmin(true)} className="opacity-40 hover:opacity-100 transition-opacity ml-2 px-2 py-1 rounded bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white flex items-center gap-1" title="Admin Panel"><Lock size={12}/> Admin</button>
         </footer>
       </div>
