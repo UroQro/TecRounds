@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, query, deleteDoc, doc, updateDoc, where } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, query, deleteDoc, doc, updateDoc, setDoc, where } from 'firebase/firestore';
 import {
   Plus, Trash2, Calendar as CalendarIcon, Download, Edit, CheckCircle, XCircle,
   UserPlus, Search, X, RotateCcw, Share2, ChevronLeft, ChevronRight, Clock,
-  SlidersHorizontal, List, LayoutGrid
+  SlidersHorizontal, List, LayoutGrid, Shield, Moon, MapPin, Lock
 } from 'lucide-react';
-import { downloadCSV, getLocalISODate, applyPrivacy, normalizeText } from '../utils';
+import { downloadCSV, getLocalISODate, applyPrivacy, normalizeText, getOrderedResidents, getMemberProfile, getGuardForDate, canUserManageSchedule } from '../utils';
 
 // Convierte "HH:MM" a horas decimales (ej. "08:30" -> 8.5)
 const parseTimeToHours = (timeStr) => {
@@ -32,7 +32,7 @@ const getLocationCategory = (loc) => {
   return 'other';
 };
 
-export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
+export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode, settingsMeta = {}, onOpenRotation }) {
   const today = getLocalISODate();
   const [surgeries, setSurgeries] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -40,6 +40,12 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
   const [prefillSlot, setPrefillSlot] = useState(null); // { date, time }
   const [transferringSurgery, setTransferringSurgery] = useState(null);
   const [activeSurgeryDetail, setActiveSurgeryDetail] = useState(null);
+  const [editingDayGuard, setEditingDayGuard] = useState(false);
+
+  const { allowed: canManageSchedule, profile: currentUserProfile } = useMemo(
+    () => canUserManageSchedule(user, settingsMeta),
+    [user, settingsMeta]
+  );
 
   // Vista: 'day' (Google Calendar Hora x Hora) | 'list' (Lista continua)
   const [viewMode, setViewMode] = useState('day');
@@ -66,6 +72,31 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
   const resiList = dynamicResidents || [];
   const docList = dynamicDoctors || [];
   const locList = dynamicLocations || [];
+
+  const { allOrdered: orderedResidents, hzhResidents, otherResidents } = useMemo(
+    () => getOrderedResidents(resiList, settingsMeta),
+    [resiList, settingsMeta]
+  );
+  const selectedDayGuard = useMemo(() => getGuardForDate(selectedDate, settingsMeta), [selectedDate, settingsMeta]);
+
+  const handleQuickGuardChange = async (value) => {
+    if (!canManageSchedule) return;
+    try {
+      const currentHzh = settingsMeta?.hzhRotation || {};
+      const currentSchedule = { ...(currentHzh.schedule || {}) };
+      const existingForDate = currentSchedule[selectedDate] || {};
+      currentSchedule[selectedDate] = { ...existingForDate, guardia: value };
+
+      await setDoc(doc(db, 'metadata', 'settings'), {
+        hzhRotation: {
+          ...currentHzh,
+          schedule: currentSchedule
+        }
+      }, { merge: true });
+    } catch (err) {
+      alert('Error al guardar guardia: ' + err.message);
+    }
+  };
 
   // Si el usuario selecciona una fecha anterior a la ventana cargada, ampliamos daysBack automáticamente
   useEffect(() => {
@@ -291,7 +322,11 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
         currentDay = s.date;
         const dObj = new Date(s.date + 'T12:00:00');
         const dStr = dObj.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
+        const gInfo = getGuardForDate(s.date, settingsMeta);
         text += `\n📅 *${dStr.toUpperCase()}*\n`;
+        if (gInfo.guardia || gInfo.posguardia) {
+          text += `🛡️ Guardia: *${gInfo.guardia || 'S/A'}* | 💤 Posguardia: *${gInfo.posguardia || 'S/A'}*\n`;
+        }
       }
       const dur = Number(s.duration) || 1;
       const statusIcon = s.cancelled ? '❌' : s.completed ? '✅' : '🕒';
@@ -468,7 +503,26 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
             <select className="border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg p-1.5 text-xs" value={filterRes} onChange={e => setFilterRes(e.target.value)}>
               <option value="">Residente (Todos)</option>
               <option value="Por Asignar">⚠️ Por Asignar</option>
-              {resiList.map(r => <option key={r} value={r}>{r}</option>)}
+              {hzhResidents.length > 0 ? (
+                <>
+                  <optgroup label="📍 Rotando en Zambrano (HZH)">
+                    {hzhResidents.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </optgroup>
+                  {otherResidents.length > 0 && (
+                    <optgroup label="Otros Residentes">
+                      {otherResidents.map(r => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              ) : (
+                orderedResidents.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))
+              )}
             </select>
             <select className="border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg p-1.5 text-xs" value={filterDoc} onChange={e => setFilterDoc(e.target.value)}>
               <option value="">Tratante (Todos)</option>
@@ -483,51 +537,165 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
 
         {/* Barra de Navegación de Fecha para Vista Día (Google Calendar) */}
         {viewMode === 'day' && (
-          <div className="flex items-center justify-between pt-1.5 border-t border-gray-100 dark:border-slate-700 gap-1">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => shiftSelectedDate(-1)}
-                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200"
-                title="Día anterior"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                onClick={() => shiftSelectedDate(1)}
-                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200"
-                title="Día siguiente"
-              >
-                <ChevronRight size={16} />
-              </button>
-              <div className="ml-1">
-                <div className="text-xs sm:text-sm font-black capitalize text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <span>{selectedDateFormatted}</span>
-                  {selectedDate === today && (
-                    <span className="text-[10px] font-black bg-blue-600 text-white px-1.5 py-0.5 rounded-full">HOY</span>
-                  )}
+          <div className="pt-1.5 border-t border-gray-100 dark:border-slate-700 space-y-2">
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => shiftSelectedDate(-1)}
+                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200"
+                  title="Día anterior"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => shiftSelectedDate(1)}
+                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200"
+                  title="Día siguiente"
+                >
+                  <ChevronRight size={16} />
+                </button>
+                <div className="ml-1">
+                  <div className="text-xs sm:text-sm font-black capitalize text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span>{selectedDateFormatted}</span>
+                    {selectedDate === today && (
+                      <span className="text-[10px] font-black bg-blue-600 text-white px-1.5 py-0.5 rounded-full">HOY</span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-gray-500 dark:text-slate-400">
+                    {daySurgeries.length} cirugía(s) programada(s)
+                  </div>
                 </div>
-                <div className="text-[10px] text-gray-500 dark:text-slate-400">
-                  {daySurgeries.length} cirugía(s) programada(s)
-                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {selectedDate !== today && (
+                  <button
+                    onClick={() => setSelectedDate(today)}
+                    className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-bold"
+                  >
+                    Ir a Hoy
+                  </button>
+                )}
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => e.target.value && setSelectedDate(e.target.value)}
+                  className="p-1 border border-gray-200 dark:border-slate-600 rounded-lg text-xs bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white w-[34px] sm:w-auto overflow-hidden"
+                  title="Ir a fecha específica"
+                />
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              {selectedDate !== today && (
-                <button
-                  onClick={() => setSelectedDate(today)}
-                  className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-bold"
-                >
-                  Ir a Hoy
-                </button>
+            {/* Indicador de Guardia y Posguardia HZH para el día seleccionado */}
+            <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Badge Guardia */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 flex items-center gap-0.5">
+                      🛡️ Guardia:
+                    </span>
+                    {selectedDayGuard.guardia ? (() => {
+                      const gProf = getMemberProfile(selectedDayGuard.guardia, settingsMeta);
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-black ${gProf.color.badge}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${gProf.color.dot}`}></span>
+                          {selectedDayGuard.guardia}
+                        </span>
+                      );
+                    })() : (
+                      canManageSchedule ? (
+                        <button
+                          onClick={() => setEditingDayGuard(true)}
+                          className="text-[10px] font-bold text-gray-400 hover:text-orange-600 underline"
+                        >
+                          Asignar
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-gray-400">Sin asignar</span>
+                      )
+                    )}
+                  </div>
+
+                  <span className="text-gray-300 dark:text-slate-600">|</span>
+
+                  {/* Badge Posguardia (100% automático según guardia de ayer) */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 flex items-center gap-0.5">
+                      💤 Posguardia:
+                    </span>
+                    {selectedDayGuard.posguardia ? (() => {
+                      const pgProf = getMemberProfile(selectedDayGuard.posguardia, settingsMeta);
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold opacity-90 ${pgProf.color.badge}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${pgProf.color.dot}`}></span>
+                          {selectedDayGuard.posguardia}
+                        </span>
+                      );
+                    })() : (
+                      <span className="text-[10px] font-semibold text-gray-400">Sin asignar</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 ml-auto">
+                  {canManageSchedule && (
+                    <button
+                      onClick={() => setEditingDayGuard(!editingDayGuard)}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-orange-400 transition"
+                      title="Asignar guardia de este día"
+                    >
+                      {editingDayGuard ? 'Cerrar' : '✏️ Guardia'}
+                    </button>
+                  )}
+                  {onOpenRotation && (
+                    <button
+                      onClick={onOpenRotation}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/70 text-orange-700 dark:text-orange-300 hover:bg-orange-100 transition"
+                      title="Ver rotación mensual HZH y rol de guardias"
+                    >
+                      📍 Rol Mes
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Editor rápido inline de Guardia para el día seleccionado */}
+              {editingDayGuard && canManageSchedule && (
+                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 items-center">
+                  <div>
+                    <label className="text-[10px] font-bold text-orange-700 dark:text-orange-300 block mb-0.5">🛡️ En Guardia ({selectedDate}):</label>
+                    <select
+                      value={selectedDayGuard.guardia || ''}
+                      onChange={e => handleQuickGuardChange(e.target.value)}
+                      className="w-full p-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                    >
+                      <option value="">— Sin asignar —</option>
+                      <option value="Nadie">🚫 Nadie (Sin guardia)</option>
+                      {hzhResidents.length > 0 ? (
+                        <>
+                          <optgroup label="📍 Rotando en HZH">
+                            {hzhResidents.map(r => <option key={r} value={r}>{r}</option>)}
+                          </optgroup>
+                          {otherResidents.length > 0 && (
+                            <optgroup label="Otros Residentes">
+                              {otherResidents.map(r => <option key={r} value={r}>{r}</option>)}
+                            </optgroup>
+                          )}
+                        </>
+                      ) : (
+                        orderedResidents.map(r => <option key={r} value={r}>{r}</option>)
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 block mb-0.5">💤 Posguardia (Automática):</label>
+                    <div className="p-1.5 rounded border border-dashed border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/60 text-xs font-bold text-slate-600 dark:text-slate-300">
+                      {selectedDayGuard.posguardia || '— Guardia de ayer —'}
+                    </div>
+                  </div>
+                </div>
               )}
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={e => e.target.value && setSelectedDate(e.target.value)}
-                className="p-1 border border-gray-200 dark:border-slate-600 rounded-lg text-xs bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white w-[34px] sm:w-auto overflow-hidden"
-                title="Ir a fecha específica"
-              />
             </div>
           </div>
         )}
@@ -620,6 +788,7 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                 const widthPct = 100 / s.totalCols;
                 const leftPct = s.colIndex * widthPct;
                 const endTimeStr = formatHoursToTime(s.end);
+                const resProf = s.resident ? getMemberProfile(s.resident, settingsMeta) : null;
 
                 return (
                   <div
@@ -657,8 +826,9 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                       <span className="font-semibold truncate">
                         👨‍⚕️ {applyPrivacy(s.doctor || 'S/T', privacyMode, 'name')}
                       </span>
-                      <span className={`font-black px-1.5 py-0.2 rounded flex-shrink-0 ${!s.resident ? 'bg-yellow-200/90 text-yellow-900' : 'bg-black/10 dark:bg-white/15'}`}>
-                        R: {s.resident || 'S/A'}{s.resident2 ? ` + ${s.resident2}` : ''}
+                      <span className={`font-black px-1.5 py-0.5 rounded flex-shrink-0 inline-flex items-center gap-1 ${!s.resident ? 'bg-yellow-200/90 text-yellow-900' : resProf ? `${resProf.color.badge} border` : 'bg-black/10 dark:bg-white/15'}`}>
+                        {resProf && <span className={`w-1.5 h-1.5 rounded-full ${resProf.color.dot}`}></span>}
+                        <span>{s.resident || 'S/A'}{s.resident2 ? ` + ${s.resident2}` : ''}</span>
                       </span>
                     </div>
                   </div>
@@ -680,21 +850,40 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
             const showHeader = s.date !== lastDate;
             lastDate = s.date;
             const dur = Number(s.duration) || 1;
+            const dayGuard = showHeader ? getGuardForDate(s.date, settingsMeta) : null;
+            const res1Prof = s.resident ? getMemberProfile(s.resident, settingsMeta) : null;
+            const res2Prof = s.resident2 ? getMemberProfile(s.resident2, settingsMeta) : null;
 
             return (
               <React.Fragment key={s.id}>
                 {showHeader && (
-                  <h3 className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mt-5 mb-1.5 pl-1 border-b border-gray-200 dark:border-slate-700 pb-1 flex items-center justify-between">
-                    <span>
-                      {dateStr} {s.date === today && <span className="text-blue-600 dark:text-blue-400 ml-1">(HOY)</span>}
-                    </span>
-                    <button
-                      onClick={() => handleSelectDateFromCalendar(s.date)}
-                      className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline normal-case"
-                    >
-                      Ver en agenda →
-                    </button>
-                  </h3>
+                  <div className="mt-5 mb-1.5 pl-1 border-b border-gray-200 dark:border-slate-700 pb-1">
+                    <h3 className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase flex items-center justify-between">
+                      <span>
+                        {dateStr} {s.date === today && <span className="text-blue-600 dark:text-blue-400 ml-1">(HOY)</span>}
+                      </span>
+                      <button
+                        onClick={() => handleSelectDateFromCalendar(s.date)}
+                        className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline normal-case"
+                      >
+                        Ver en agenda →
+                      </button>
+                    </h3>
+                    {(dayGuard?.guardia || dayGuard?.posguardia) && (
+                      <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px]">
+                        {dayGuard.guardia && (
+                          <span className="font-bold text-orange-600 dark:text-orange-400">
+                            🛡️ Guardia: {dayGuard.guardia}
+                          </span>
+                        )}
+                        {dayGuard.posguardia && (
+                          <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                            💤 Posguardia: {dayGuard.posguardia}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
                 <div className={`rounded-xl p-3 relative transition-all ${getCardStyle(s)}`}>
                   <div className={`flex justify-between text-xs font-bold mb-1 ${s.cancelled ? 'text-gray-400 line-through' : 'text-gray-600 dark:text-slate-300'}`}>
@@ -710,12 +899,14 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
 
                   <div className="flex items-center justify-between gap-2 mt-2">
                     <span className="text-xs text-gray-500 dark:text-gray-400">Tx: {applyPrivacy(s.doctor, privacyMode, 'name')}</span>
-                    <div className="flex gap-1.5">
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${!s.resident ? 'bg-yellow-100 text-yellow-800' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200'}`}>
+                    <div className="flex gap-1.5 flex-wrap justify-end">
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold inline-flex items-center gap-1 ${!s.resident ? 'bg-yellow-100 text-yellow-800' : `${res1Prof.color.badge} border`}`}>
+                        {res1Prof && <span className={`w-1.5 h-1.5 rounded-full ${res1Prof.color.dot}`}></span>}
                         {s.resident || 'No Asignado'}
                       </span>
                       {s.resident2 && (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200">
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold border inline-flex items-center gap-1 ${res2Prof.color.badge}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${res2Prof.color.dot}`}></span>
                           {s.resident2}
                         </span>
                       )}
@@ -880,9 +1071,88 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
               </button>
             </div>
 
-            <div className="text-xs bg-slate-50 dark:bg-slate-700/60 p-2.5 rounded-lg flex justify-between items-center">
-              <span><strong>Tratante:</strong> {applyPrivacy(activeSurgeryDetail.doctor, privacyMode, 'name')}</span>
-              <span><strong>Residente:</strong> {activeSurgeryDetail.resident || 'Por Asignar'}{activeSurgeryDetail.resident2 ? ` + ${activeSurgeryDetail.resident2}` : ''}</span>
+            <div className="text-xs bg-slate-50 dark:bg-slate-700/60 p-2.5 rounded-lg space-y-2">
+              <div className="flex justify-between items-center">
+                <span><strong>Tratante:</strong> {applyPrivacy(activeSurgeryDetail.doctor, privacyMode, 'name')}</span>
+                <span>
+                  <strong>Residente:</strong> {activeSurgeryDetail.resident || 'Por Asignar'}
+                  {activeSurgeryDetail.resident2 ? ` + ${activeSurgeryDetail.resident2}` : ''}
+                </span>
+              </div>
+
+              {/* Asignación rápida de residentes */}
+              {canManageSchedule && (
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-slate-600">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-slate-300 block mb-0.5">Residente Principal:</label>
+                    <select
+                      value={activeSurgeryDetail.resident || ''}
+                      onChange={async (e) => {
+                        const val = e.target.value;
+                        await updateDoc(doc(db, "surgeries", activeSurgeryDetail.id), { resident: val });
+                        setActiveSurgeryDetail(prev => prev ? { ...prev, resident: val } : null);
+                      }}
+                      className="w-full p-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                    >
+                      <option value="">— Por Asignar —</option>
+                      {hzhResidents.length > 0 ? (
+                        <>
+                          <optgroup label="📍 Rotando en HZH">
+                            {hzhResidents.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </optgroup>
+                          {otherResidents.length > 0 && (
+                            <optgroup label="Otros Residentes">
+                              {otherResidents.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      ) : (
+                        orderedResidents.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-slate-300 block mb-0.5">2do Residente:</label>
+                    <select
+                      value={activeSurgeryDetail.resident2 || ''}
+                      onChange={async (e) => {
+                        const val = e.target.value;
+                        await updateDoc(doc(db, "surgeries", activeSurgeryDetail.id), { resident2: val });
+                        setActiveSurgeryDetail(prev => prev ? { ...prev, resident2: val } : null);
+                      }}
+                      className="w-full p-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                    >
+                      <option value="">— Ninguno —</option>
+                      {hzhResidents.length > 0 ? (
+                        <>
+                          <optgroup label="📍 Rotando en HZH">
+                            {hzhResidents.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </optgroup>
+                          {otherResidents.length > 0 && (
+                            <optgroup label="Otros Residentes">
+                              {otherResidents.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      ) : (
+                        orderedResidents.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2 pt-2">
@@ -941,6 +1211,8 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
           dynamicResidents={dynamicResidents}
           dynamicDoctors={dynamicDoctors}
           dynamicLocations={dynamicLocations}
+          settingsMeta={settingsMeta}
+          canManageSchedule={canManageSchedule}
         />
       )}
 
@@ -951,6 +1223,7 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
           dynamicResidents={dynamicResidents}
           dynamicDoctors={dynamicDoctors}
           dynamicLocations={dynamicLocations}
+          settingsMeta={settingsMeta}
         />
       )}
     </div>
@@ -1021,7 +1294,7 @@ function MiniMonthGrid({ monthDate, selectedDate, today, dotsMap, onSelectDate }
   );
 }
 
-function SurgeryModal({ onClose, initialData, prefillSlot, dynamicResidents, dynamicDoctors, dynamicLocations }) {
+function SurgeryModal({ onClose, initialData, prefillSlot, dynamicResidents, dynamicDoctors, dynamicLocations, settingsMeta = {}, canManageSchedule = false }) {
   const [form, setForm] = useState(
     initialData
       ? { ...initialData, duration: Number(initialData.duration) || 1 }
@@ -1045,7 +1318,7 @@ function SurgeryModal({ onClose, initialData, prefillSlot, dynamicResidents, dyn
   const resOptions = [...(dynamicResidents || [])];
   if (initialData && form.resident && !resOptions.includes(form.resident) && form.resident !== 'Otro') resOptions.push(form.resident);
   if (initialData && form.resident2 && !resOptions.includes(form.resident2)) resOptions.push(form.resident2);
-  resOptions.sort();
+  const { allOrdered: orderedRes, hzhResidents, otherResidents } = getOrderedResidents(resOptions, settingsMeta);
 
   const docOptions = [...(dynamicDoctors || [])];
   if (initialData && form.doctor && !docOptions.includes(form.doctor) && form.doctor !== 'Otro') docOptions.push(form.doctor);
@@ -1067,6 +1340,10 @@ function SurgeryModal({ onClose, initialData, prefillSlot, dynamicResidents, dyn
     e.preventDefault();
     try {
       const payload = { ...form, duration: Number(form.duration) || 1 };
+      if (!canManageSchedule) {
+        payload.resident = initialData ? (initialData.resident || '') : '';
+        payload.resident2 = initialData ? (initialData.resident2 || '') : '';
+      }
       if (initialData) {
         await updateDoc(doc(db, "surgeries", initialData.id), payload);
       } else {
@@ -1079,6 +1356,31 @@ function SurgeryModal({ onClose, initialData, prefillSlot, dynamicResidents, dyn
   };
 
   const inputClass = "w-full p-2 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white bg-white dark:bg-slate-700";
+
+  const renderResOptions = () => (
+    <>
+      {hzhResidents.length > 0 ? (
+        <>
+          <optgroup label="📍 Rotando en Zambrano (HZH)">
+            {hzhResidents.map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </optgroup>
+          {otherResidents.length > 0 && (
+            <optgroup label="Otros Residentes">
+              {otherResidents.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </optgroup>
+          )}
+        </>
+      ) : (
+        orderedRes.map(r => (
+          <option key={r} value={r}>{r}</option>
+        ))
+      )}
+    </>
+  );
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
@@ -1126,23 +1428,35 @@ function SurgeryModal({ onClose, initialData, prefillSlot, dynamicResidents, dyn
             {isOtherDoc && <input placeholder="Nombre Tratante" required className={`text-xs bg-blue-50 ${inputClass}`} value={form.doctor} onChange={e => setForm({ ...form, doctor: e.target.value })} />}
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500">Residente Principal</label>
-            <select className={`text-xs ${inputClass}`} value={isOtherRes ? 'Otro' : form.resident} onChange={e => { if (e.target.value === 'Otro') { setIsOtherRes(true); setForm({ ...form, resident: '' }); } else { setIsOtherRes(false); setForm({ ...form, resident: e.target.value }); } }}>
-              <option value="">No Asignado</option>
-              {resOptions.map(r => <option key={r} value={r}>{r}</option>)}
-              <option value="Otro">Otro / Agregar...</option>
-            </select>
-            {isOtherRes && <input placeholder="Nombre Residente" required className={`text-xs bg-blue-50 ${inputClass}`} value={form.resident} onChange={e => setForm({ ...form, resident: e.target.value })} />}
-          </div>
+          {canManageSchedule && (
+            <>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500">Residente Principal</label>
+                <select
+                  className={`text-xs ${inputClass}`}
+                  value={isOtherRes ? 'Otro' : form.resident}
+                  onChange={e => { if (e.target.value === 'Otro') { setIsOtherRes(true); setForm({ ...form, resident: '' }); } else { setIsOtherRes(false); setForm({ ...form, resident: e.target.value }); } }}
+                >
+                  <option value="">No Asignado</option>
+                  {renderResOptions()}
+                  <option value="Otro">Otro / Agregar...</option>
+                </select>
+                {isOtherRes && <input placeholder="Nombre Residente" required className={`text-xs bg-blue-50 ${inputClass}`} value={form.resident} onChange={e => setForm({ ...form, resident: e.target.value })} />}
+              </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500">2do Residente (Opcional)</label>
-            <select className={`text-xs ${inputClass}`} value={form.resident2 || ''} onChange={e => setForm({ ...form, resident2: e.target.value })}>
-              <option value="">Ninguno</option>
-              {resOptions.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500">2do Residente (Opcional)</label>
+                <select
+                  className={`text-xs ${inputClass}`}
+                  value={form.resident2 || ''}
+                  onChange={e => setForm({ ...form, resident2: e.target.value })}
+                >
+                  <option value="">Ninguno</option>
+                  {renderResOptions()}
+                </select>
+              </div>
+            </>
+          )}
 
           <div className="flex gap-2 mt-4 pt-2 border-t dark:border-slate-700">
             <button type="button" onClick={onClose} className="flex-1 bg-gray-100 dark:bg-slate-600 text-gray-800 dark:text-white py-3 rounded font-bold">Cancelar</button>
@@ -1154,7 +1468,7 @@ function SurgeryModal({ onClose, initialData, prefillSlot, dynamicResidents, dyn
   );
 }
 
-function TransferToCensusModal({ onClose, surgery, dynamicResidents, dynamicDoctors, dynamicLocations }) {
+function TransferToCensusModal({ onClose, surgery, dynamicResidents, dynamicDoctors, dynamicLocations, settingsMeta = {} }) {
   const [form, setForm] = useState({
     name: surgery.patientName || '', bed: '', hospital: surgery.location || 'HZH', type: 'HO', doctor: surgery.doctor || '', resident: surgery.resident || '', admissionDate: getLocalISODate(), dob: '', diagnosis: `Post-op ${surgery.procedure || ''}`,
     antecedents: { dm: false, has: false, cancer: false, other: '' }, allergies: ''
@@ -1165,7 +1479,7 @@ function TransferToCensusModal({ onClose, surgery, dynamicResidents, dynamicDoct
 
   const resOptions = [...(dynamicResidents || [])];
   if (form.resident && !resOptions.includes(form.resident) && form.resident !== 'Otro') resOptions.push(form.resident);
-  resOptions.sort();
+  const { allOrdered: orderedRes, hzhResidents, otherResidents } = getOrderedResidents(resOptions, settingsMeta);
 
   const docOptions = [...(dynamicDoctors || [])];
   if (form.doctor && !docOptions.includes(form.doctor) && form.doctor !== 'Otro') docOptions.push(form.doctor);
@@ -1231,7 +1545,28 @@ function TransferToCensusModal({ onClose, surgery, dynamicResidents, dynamicDoct
           <div className="space-y-1">
             <select required={!isOtherRes} className={`text-xs ${inputClass}`} value={isOtherRes ? 'Otro' : form.resident}
               onChange={e => { if (e.target.value === 'Otro') { setIsOtherRes(true); setForm({ ...form, resident: '' }); } else { setIsOtherRes(false); setForm({ ...form, resident: e.target.value }); } }}>
-              <option value="">Residente...</option>{resOptions.map(r => <option key={r} value={r}>{r}</option>)}<option value="Otro">Otro / Agregar Nuevo</option>
+              <option value="">Residente...</option>
+              {hzhResidents.length > 0 ? (
+                <>
+                  <optgroup label="📍 Rotando en Zambrano (HZH)">
+                    {hzhResidents.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </optgroup>
+                  {otherResidents.length > 0 && (
+                    <optgroup label="Otros Residentes">
+                      {otherResidents.map(r => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              ) : (
+                orderedRes.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))
+              )}
+              <option value="Otro">Otro / Agregar Nuevo</option>
             </select>
             {isOtherRes && <input placeholder="Escribe nombre del Residente" className={`text-xs bg-blue-50 ${inputClass}`} value={form.resident} onChange={e => setForm({ ...form, resident: e.target.value })} required />}
           </div>

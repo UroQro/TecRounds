@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, updateDoc, doc, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
-import { calculateLOS, downloadCSV, calculateAge, applyPrivacy, normalizeText } from '../utils';
+import { calculateLOS, downloadCSV, calculateAge, applyPrivacy, normalizeText, getOrderedResidents, getMemberProfile } from '../utils';
 import PatientDetail from './PatientDetail';
 import PatientFormModal from './PatientFormModal';
 import { Plus, CheckSquare, Square, LogOut, Search, X, SlidersHorizontal, RotateCcw, FileCheck2, Megaphone } from 'lucide-react';
 
-export default function Census({ user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
+export default function Census({ user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode, settingsMeta = {} }) {
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  const { allOrdered: orderedResidents, hzhResidents, otherResidents } = useMemo(
+    () => getOrderedResidents(dynamicResidents, settingsMeta),
+    [dynamicResidents, settingsMeta]
+  );
 
   // Buscador y filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -234,7 +239,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
       downloadCSV(data, ["Cuarto", "IC/HO", "Nombre", "Ingreso", "Dias", "Nacimiento", "Edad", "Dx", "Tratante", "Hospital"], "Censo_General.csv");
   };
 
-  if (selectedPatient) return <PatientDetail patient={selectedPatient} onClose={() => setSelectedPatient(null)} user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />;
+  if (selectedPatient) return <PatientDetail patient={selectedPatient} onClose={() => setSelectedPatient(null)} user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} settingsMeta={settingsMeta} />;
 
   return (
     <div className="pb-24">
@@ -272,7 +277,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
              )}
          </div>
 
-         {/* Fila 2: Chips rápidos de estado (Scroll horizontal limpio en móvil) */}
+         {/* Fila 2: Chips rápidos de estado (Scroll horizontal limpio en móvil): xVer, Alta, PA, Pend y Ent */}
          <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-[11px] font-bold">
              <button
                  onClick={() => setQuickFilter('all')}
@@ -281,16 +286,10 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                  Todos <span className="opacity-80">({stats.total})</span>
              </button>
              <button
-                 onClick={() => setQuickFilter(quickFilter === 'handover' ? 'all' : 'handover')}
-                 className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'handover' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60'}`}
-             >
-                 📢 Entrega <span>({stats.forHandover})</span>
-             </button>
-             <button
                  onClick={() => setQuickFilter(quickFilter === 'pending_visit' ? 'all' : 'pending_visit')}
                  className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'pending_visit' ? 'bg-red-600 text-white shadow-sm' : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60'}`}
              >
-                 🔴 Sin ver <span>({stats.pendingVisit})</span>
+                 🔴 xVer <span>({stats.pendingVisit})</span>
              </button>
              <button
                  onClick={() => setQuickFilter(quickFilter === 'ready_discharge' ? 'all' : 'ready_discharge')}
@@ -302,13 +301,19 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                  onClick={() => setQuickFilter(quickFilter === 'pre_discharge' ? 'all' : 'pre_discharge')}
                  className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'pre_discharge' ? 'bg-purple-600 text-white shadow-sm' : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60'}`}
              >
-                 🟣 Prealta <span>({stats.preDischarge})</span>
+                 🟣 PA <span>({stats.preDischarge})</span>
              </button>
              <button
                  onClick={() => setQuickFilter(quickFilter === 'has_pending' ? 'all' : 'has_pending')}
                  className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'has_pending' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-yellow-50 dark:bg-yellow-950/50 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800/60'}`}
              >
                  ⚠️ Pend <span>({stats.withPendingTasks})</span>
+             </button>
+             <button
+                 onClick={() => setQuickFilter(quickFilter === 'handover' ? 'all' : 'handover')}
+                 className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'handover' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60'}`}
+             >
+                 📢 Ent <span>({stats.forHandover})</span>
              </button>
          </div>
 
@@ -332,7 +337,24 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                      </select>
                      <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={filterRes} onChange={e=>setFilterRes(e.target.value)}>
                          <option value="">Residente (Todos)</option>
-                         {dynamicResidents.map(r => <option key={r} value={r}>{r}</option>)}
+                         {hzhResidents.length > 0 ? (
+                             <>
+                                 <optgroup label="📍 Rotando en Zambrano (HZH)">
+                                     {hzhResidents.map(r => (
+                                         <option key={r} value={r}>{r}</option>
+                                     ))}
+                                 </optgroup>
+                                 <optgroup label="Otros Residentes">
+                                     {otherResidents.map(r => (
+                                         <option key={r} value={r}>{r}</option>
+                                     ))}
+                                 </optgroup>
+                             </>
+                         ) : (
+                             orderedResidents.map(r => (
+                                 <option key={r} value={r}>{r}</option>
+                             ))
+                         )}
                      </select>
                  </div>
                  <div className="grid grid-cols-3 gap-1.5">
@@ -364,6 +386,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
             const pendingTasksCount = (p.checklist || []).filter(t => !t.done).length;
             const cleanAllergies = String(p.allergies || '').trim().toLowerCase();
             const hasAllergy = cleanAllergies !== '' && !['negadas', 'negada', 'negado', 'ninguna', 'ninguno', 'no', 'sin alergias', 's/a', 'n/a', 'na', '-'].includes(cleanAllergies);
+            const resProfile = getMemberProfile(p.resident, settingsMeta);
             return (
             <div key={p.id} onClick={() => setSelectedPatient(p)} className={`p-3 rounded-xl cursor-pointer active:scale-[0.99] transition ${getCardColor(p)}`}>
                <div className="flex justify-between items-start gap-2">
@@ -411,9 +434,14 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                      <h3 className="font-extrabold text-base sm:text-lg text-blue-700 dark:text-blue-300 leading-tight mb-0.5 truncate">{applyPrivacy(p.name, privacyMode, 'name')}</h3>
                      <p className="text-xs opacity-80 mb-1.5 dark:text-slate-300 text-gray-700 line-clamp-1">{calculateAge(p.dob)} años • {p.diagnosis}</p>
                      
-                     <div className="text-[11px] opacity-80 flex justify-between bg-black/5 dark:bg-white/5 px-2 py-1 rounded dark:text-slate-300 text-slate-700">
-                        <span className="truncate pr-2">{applyPrivacy(p.doctor, privacyMode, 'name')}</span>
-                        <span className="font-bold flex-shrink-0">{p.resident}</span>
+                     <div className="text-[11px] flex justify-between items-center bg-black/5 dark:bg-white/5 px-2 py-1 rounded dark:text-slate-300 text-slate-700">
+                        <span className="truncate pr-2 opacity-85">{applyPrivacy(p.doctor, privacyMode, 'name')}</span>
+                        {p.resident && (
+                            <span className={`font-bold flex-shrink-0 px-1.5 py-0.5 rounded border text-[10px] flex items-center gap-1 ${resProfile.colorObj.badge}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${resProfile.colorObj.dot}`} />
+                                {p.resident}
+                            </span>
+                        )}
                      </div>
                   </div>
 
@@ -473,7 +501,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
       </div>
 
       <button onClick={() => setShowAddModal(true)} className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl hover:bg-blue-700 transition z-20"><Plus size={28} /></button>
-      {showAddModal && <PatientFormModal onClose={() => setShowAddModal(false)} mode="create" dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
+      {showAddModal && <PatientFormModal onClose={() => setShowAddModal(false)} mode="create" dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} settingsMeta={settingsMeta} />}
     </div>
   );
 }

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import { collection, doc, addDoc, updateDoc, arrayUnion, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
-import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate, applyPrivacy, normalizeText } from '../utils';
-import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive, Scissors, Search, X, FileCheck2, Megaphone } from 'lucide-react';
+import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate, applyPrivacy, normalizeText, getOrderedResidents, getMemberProfile, canUserManageSchedule } from '../utils';
+import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive, Scissors, Search, X, FileCheck2, Megaphone, Lock } from 'lucide-react';
 import PatientFormModal from './PatientFormModal';
 
-export default function PatientDetail({ patient: initialPatient, onClose, user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
+export default function PatientDetail({ patient: initialPatient, onClose, user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode, settingsMeta = {} }) {
   const [patient, setPatient] = useState(initialPatient);
   const [noteType, setNoteType] = useState('visita');
   const [showEdit, setShowEdit] = useState(false);
@@ -246,9 +246,20 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
              {antecedents.other && <p className="text-gray-600 dark:text-gray-400"><strong>Ant:</strong> {antecedents.other}</p>}
              {hasAllergy && <p className="text-red-600 dark:text-red-400 mt-1"><strong>Alergias:</strong> {allergies}</p>}
              <p className="text-gray-500 dark:text-gray-400 mt-1"><strong>Dx:</strong> {patient.diagnosis}</p>
-             <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400 mt-2 pt-1.5 border-t border-gray-100 dark:border-slate-700">
+             <div className="flex justify-between items-center text-[11px] text-gray-500 dark:text-gray-400 mt-2 pt-1.5 border-t border-gray-100 dark:border-slate-700">
                  <span><strong>Tratante:</strong> {applyPrivacy(patient.doctor || 'S/A', privacyMode, 'name')}</span>
-                 <span><strong>Residente:</strong> {patient.resident || 'S/A'}</span>
+                 <span className="flex items-center gap-1">
+                     <strong>Residente:</strong>
+                     {patient.resident ? (() => {
+                         const prof = getMemberProfile(patient.resident, settingsMeta);
+                         return (
+                             <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold ${prof.color.badge}`}>
+                                 <span className={`w-1.5 h-1.5 rounded-full ${prof.color.dot}`}></span>
+                                 {patient.resident}
+                             </span>
+                         );
+                     })() : 'S/A'}
+                 </span>
              </div>
           </div>
 
@@ -396,12 +407,17 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
           )}
 
           <div className="space-y-3 pb-10">
-              {filteredNotes.map(note => (
+              {filteredNotes.map(note => {
+                  const authorProf = getMemberProfile(note.author, settingsMeta);
+                  return (
                   <div key={note.id} className="bg-white dark:bg-slate-800 border border-blue-50 dark:border-slate-700 rounded p-3 shadow-md dark:shadow-sm relative group text-slate-900 dark:text-slate-200">
                        <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b border-gray-100 dark:border-slate-700 pb-1">
                            <span className="font-mono">{new Date(note.timestamp).toLocaleDateString('es-MX', {day:'2-digit', month:'short'})} | {new Date(note.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                           <div className="flex gap-2 items-center">
-                               <span className="uppercase font-extrabold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-slate-700 px-2 py-0.5 rounded text-[10px]">{note.author}</span>
+                           <div className="flex gap-1.5 items-center">
+                               <span className={`uppercase font-extrabold px-2 py-0.5 rounded border text-[10px] inline-flex items-center gap-1 ${authorProf.color.badge}`}>
+                                   <span className={`w-1.5 h-1.5 rounded-full ${authorProf.color.dot}`}></span>
+                                   {note.author}
+                               </span>
                                <span className="uppercase font-bold bg-slate-100 dark:bg-slate-700 px-1 rounded text-[10px] text-gray-500 dark:text-gray-400">{note.type}</span>
                                <button onClick={() => loadNoteForEditing(note)} className="text-blue-400 hover:text-blue-600"><Edit size={14}/></button>
                                <button onClick={() => deleteNote(note.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
@@ -466,23 +482,25 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
                            <div className="text-sm text-gray-800 dark:text-gray-200"><p className="font-bold text-purple-900 dark:text-purple-300">💊 {note.content.drug}</p><p className="text-xs text-gray-500 dark:text-gray-400">Inicio: {new Date(note.content.startDate).toLocaleDateString()}</p><p className="text-xs font-bold text-purple-600 bg-purple-50 dark:bg-purple-900/30 p-1 inline-block rounded mt-1">Día {calculateTreatmentDay(note.content.startDate)} de tratamiento</p></div>
                        ) : (<div className="text-sm text-gray-800 dark:text-gray-200 break-words">{note.type === 'imagen' ? <a href={note.content.text} target="_blank" className="text-blue-600 underline flex gap-1 items-center"><LinkIcon size={14}/> Ver Imagen</a> : note.content.text}</div>)}
                   </div>
-              ))}
+                  );
+              })}
               {filteredNotes.length === 0 && (patient.notes?.length || 0) > 0 && (
                   <p className="text-center text-xs text-gray-400 py-4">No hay notas que coincidan con la búsqueda.</p>
               )}
           </div>
       </div>
       
-      {showEdit && <PatientFormModal onClose={() => setShowEdit(false)} mode="edit" initialData={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
+      {showEdit && <PatientFormModal onClose={() => setShowEdit(false)} mode="edit" initialData={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} settingsMeta={settingsMeta} />}
       
       {/* 🔥 MODAL DE PROGRAMAR CIRUGÍA DESDE EL CENSO 🔥 */}
-      {showSurgeryModal && <ScheduleSurgeryModal onClose={() => setShowSurgeryModal(false)} patient={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} />}
+      {showSurgeryModal && <ScheduleSurgeryModal user={user} onClose={() => setShowSurgeryModal(false)} patient={patient} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} settingsMeta={settingsMeta} />}
     </div>
   );
 }
 
 // 🔥 COMPONENTE NUEVO: MODAL PARA AGENDAR DESDE EL DETALLE DEL PACIENTE 🔥
-function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDoctors, dynamicLocations }) {
+function ScheduleSurgeryModal({ user, onClose, patient, dynamicResidents, dynamicDoctors, dynamicLocations, settingsMeta = {} }) {
+    const { allowed: canManageSchedule } = canUserManageSchedule(user, settingsMeta);
     const [form, setForm] = useState({ 
         date: getLocalISODate(), 
         time: '', 
@@ -491,7 +509,7 @@ function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDocto
         procedure: '', 
         location: patient.hospital || '', 
         doctor: patient.doctor || '', 
-        resident: patient.resident || '', 
+        resident: canManageSchedule ? (patient.resident || '') : '', 
         resident2: '', 
         completed: false, 
         cancelled: false 
@@ -502,7 +520,7 @@ function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDocto
     
     const resOptions = [...(dynamicResidents || [])];
     if (form.resident && !resOptions.includes(form.resident) && form.resident !== 'Otro') resOptions.push(form.resident);
-    resOptions.sort();
+    const { allOrdered: orderedRes, hzhResidents, otherResidents } = getOrderedResidents(resOptions, settingsMeta);
 
     const docOptions = [...(dynamicDoctors || [])];
     if (form.doctor && !docOptions.includes(form.doctor) && form.doctor !== 'Otro') docOptions.push(form.doctor);
@@ -520,7 +538,13 @@ function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDocto
     const handleSubmit = async (e) => { 
         e.preventDefault(); 
         try { 
-            await addDoc(collection(db, "surgeries"), { ...form, duration: Number(form.duration) || 1 }); 
+            const payload = {
+                ...form,
+                duration: Number(form.duration) || 1,
+                resident: canManageSchedule ? form.resident : '',
+                resident2: canManageSchedule ? (form.resident2 || '') : ''
+            };
+            await addDoc(collection(db, "surgeries"), payload); 
             alert(`¡Cirugía programada para ${form.patientName}!`);
             onClose(); 
         } catch(err) { 
@@ -529,6 +553,31 @@ function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDocto
     };
     
     const inputClass = "w-full p-2 border border-slate-300 dark:border-slate-600 rounded text-slate-900 dark:text-white bg-white dark:bg-slate-700";
+
+    const renderResOptions = () => (
+        <>
+            {hzhResidents.length > 0 ? (
+                <>
+                    <optgroup label="📍 Rotando en Zambrano (HZH)">
+                        {hzhResidents.map(r => (
+                            <option key={r} value={r}>{r}</option>
+                        ))}
+                    </optgroup>
+                    {otherResidents.length > 0 && (
+                        <optgroup label="Otros Residentes">
+                            {otherResidents.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                            ))}
+                        </optgroup>
+                    )}
+                </>
+            ) : (
+                orderedRes.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                ))
+            )}
+        </>
+    );
 
     return (
       <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
@@ -558,9 +607,20 @@ function ScheduleSurgeryModal({ onClose, patient, dynamicResidents, dynamicDocto
                   
                   <div className="space-y-1"><select required={!isOtherDoc} className={`text-xs ${inputClass}`} value={isOtherDoc ? 'Otro' : form.doctor} onChange={e=>{ if(e.target.value==='Otro') { setIsOtherDoc(true); setForm({...form, doctor: ''}); } else { setIsOtherDoc(false); setForm({...form, doctor:e.target.value}); }}}> <option value="">Tratante</option>{docOptions.map(d=><option key={d} value={d}>{d}</option>)}<option value="Otro">Otro / Agregar...</option></select>{isOtherDoc && <input placeholder="Nombre Tratante" required className={`text-xs bg-blue-50 ${inputClass}`} value={form.doctor} onChange={e=>setForm({...form, doctor:e.target.value})}/>}</div>
                   
-                  <div className="space-y-1"><label className="text-xs font-bold text-gray-500">Residente Principal</label><select className={`text-xs ${inputClass}`} value={isOtherRes ? 'Otro' : form.resident} onChange={e=>{ if(e.target.value==='Otro') { setIsOtherRes(true); setForm({...form, resident: ''}); } else { setIsOtherRes(false); setForm({...form, resident:e.target.value}); }}}> <option value="">No Asignado</option>{resOptions.map(r=><option key={r} value={r}>{r}</option>)}<option value="Otro">Otro / Agregar...</option></select>{isOtherRes && <input placeholder="Nombre Residente" required className={`text-xs bg-blue-50 ${inputClass}`} value={form.resident} onChange={e=>setForm({...form, resident:e.target.value})}/>}</div>
-                  
-                  <div className="space-y-1"><label className="text-xs font-bold text-gray-500">2do Residente (Opcional)</label><select className={`text-xs ${inputClass}`} value={form.resident2 || ''} onChange={e=>setForm({...form, resident2:e.target.value})}> <option value="">Ninguno</option>{resOptions.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
+                  {canManageSchedule && (
+                      <>
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-500">Residente Principal</label>
+                              <select className={`text-xs ${inputClass}`} value={isOtherRes ? 'Otro' : form.resident} onChange={e=>{ if(e.target.value==='Otro') { setIsOtherRes(true); setForm({...form, resident: ''}); } else { setIsOtherRes(false); setForm({...form, resident:e.target.value}); }}}> <option value="">No Asignado</option>{renderResOptions()}<option value="Otro">Otro / Agregar...</option></select>
+                              {isOtherRes && <input placeholder="Nombre Residente" required className={`text-xs bg-blue-50 ${inputClass}`} value={form.resident} onChange={e=>setForm({...form, resident:e.target.value})}/>}
+                          </div>
+                          
+                          <div className="space-y-1">
+                              <label className="text-xs font-bold text-gray-500">2do Residente (Opcional)</label>
+                              <select className={`text-xs ${inputClass}`} value={form.resident2 || ''} onChange={e=>setForm({...form, resident2:e.target.value})}> <option value="">Ninguno</option>{renderResOptions()}</select>
+                          </div>
+                      </>
+                  )}
 
                   <div className="flex gap-2 mt-4 pt-2 border-t dark:border-slate-700"><button type="button" onClick={onClose} className="flex-1 bg-gray-100 dark:bg-slate-600 text-gray-800 dark:text-white py-3 rounded font-bold">Cancelar</button><button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded font-bold shadow-lg">Guardar</button></div>
               </form>

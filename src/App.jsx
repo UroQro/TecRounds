@@ -7,8 +7,9 @@ import Census from './components/Census';
 import Surgery from './components/Surgery';
 import Discharges from './components/Discharges';
 import AdminPanel from './components/AdminPanel';
-import { LogOut, ClipboardList, Archive, Scissors, Lock, Eye, EyeOff, BookOpen } from 'lucide-react';
-import { getLocalISODate } from './utils';
+import RotationScheduleModal from './components/RotationScheduleModal';
+import { LogOut, ClipboardList, Archive, Scissors, Lock, Eye, EyeOff, BookOpen, MapPin } from 'lucide-react';
+import { getLocalISODate, getMemberProfile, isEndOfMonthRotationPrompt, computeMarchPromotion, normalizeText } from './utils';
 import { DEFAULT_RESIDENTS, DOCTORS, LOCATIONS } from './constants';
 
 export default function App() {
@@ -16,12 +17,14 @@ export default function App() {
   const [view, setView] = useState('login'); 
   const [loading, setLoading] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showRotationModal, setShowRotationModal] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false); 
   const [readerMode, setReaderMode] = useState(false); 
 
   const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
   const [dynamicDoctors, setDynamicDoctors] = useState(DOCTORS);
   const [dynamicLocations, setDynamicLocations] = useState(LOCATIONS);
+  const [settingsMeta, setSettingsMeta] = useState({ profiles: {}, hzhRotation: {} });
 
   useEffect(() => {
       const updateTheme = () => {
@@ -44,6 +47,11 @@ export default function App() {
               setDynamicResidents(data.residents ? [...data.residents].sort() : DEFAULT_RESIDENTS);
               setDynamicDoctors(data.doctors ? [...data.doctors].sort() : DOCTORS);
               setDynamicLocations(data.locations ? [...data.locations].sort() : LOCATIONS);
+              setSettingsMeta({
+                  profiles: data.profiles || {},
+                  hzhRotation: data.hzhRotation || {},
+                  lastPromotionYear: data.lastPromotionYear
+              });
           } else {
               setDoc(doc(db, 'metadata', 'settings'), { residents: DEFAULT_RESIDENTS, doctors: DOCTORS, locations: LOCATIONS }, { merge: true }).catch(err => console.error(err));
           }
@@ -85,9 +93,45 @@ export default function App() {
                   return;
               }
 
+              const updates = {};
               const knownUsers = data.knownUsers || [];
+              let currentProfiles = { ...(data.profiles || {}) };
+              let currentResidents = data.residents ? [...data.residents] : [...DEFAULT_RESIDENTS];
+
+              // Nuevos usuarios inician siempre como R2 (azul) por defecto si no tienen perfil aún
+              const emailPrefixKey = normalizeText((currentUser.email || '').split('@')[0]);
+              const dispKey = normalizeText(currentUser.displayName || '');
               if (!knownUsers.includes(currentUser.email)) {
-                  await setDoc(doc(db, 'metadata', 'settings'), { knownUsers: arrayUnion(currentUser.email) }, { merge: true });
+                  updates.knownUsers = arrayUnion(currentUser.email);
+                  if (emailPrefixKey && !currentProfiles[emailPrefixKey] && (!dispKey || !currentProfiles[dispKey])) {
+                      const rawName = currentUser.displayName || (currentUser.email || '').split('@')[0];
+                      const cleanName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
+                      const newProf = {
+                          name: cleanName,
+                          email: currentUser.email,
+                          role: 'r2',
+                          color: 'blue'
+                      };
+                      currentProfiles[emailPrefixKey] = newProf;
+                      if (dispKey) currentProfiles[dispKey] = newProf;
+                      updates.profiles = currentProfiles;
+                  }
+              }
+
+              // Promoción anual automática cada 1 de marzo (R5->EXT, R4->R5, R3->R4, R2->R3)
+              const now = new Date();
+              const currentCycleYear = now.getMonth() >= 2 ? now.getFullYear() : now.getFullYear() - 1;
+              if (data.lastPromotionYear === undefined) {
+                  updates.lastPromotionYear = currentCycleYear;
+              } else if (data.lastPromotionYear < currentCycleYear) {
+                  const { nextProfiles, nextResidents } = computeMarchPromotion(currentProfiles, currentResidents);
+                  updates.profiles = nextProfiles;
+                  updates.residents = nextResidents;
+                  updates.lastPromotionYear = currentCycleYear;
+              }
+
+              if (Object.keys(updates).length > 0) {
+                  await setDoc(doc(db, 'metadata', 'settings'), updates, { merge: true });
               }
           } catch(err) {
               console.error("Error validando usuario:", err);
@@ -116,6 +160,9 @@ export default function App() {
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-slate-900 dark:text-white">Cargando...</div>;
   if (!user) return <Login />;
 
+  const currentUserProfile = getMemberProfile(user.email || getUserName(), settingsMeta);
+  const endOfMonthPrompt = isEndOfMonthRotationPrompt(settingsMeta);
+
   return (
     <>
       {readerMode && (
@@ -130,20 +177,41 @@ export default function App() {
 
       <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 relative ${readerMode ? 'e-ink-active bg-[#f8f9fa] text-black dark:bg-[#111] dark:text-white' : 'bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100'}`}>
         
-        {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+        {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} onOpenRotation={() => { setShowAdmin(false); setShowRotationModal(true); }} />}
+        {showRotationModal && (
+            <RotationScheduleModal
+                user={user}
+                onClose={() => setShowRotationModal(false)}
+                dynamicResidents={dynamicResidents}
+                settingsMeta={settingsMeta}
+            />
+        )}
 
         <header className="bg-black text-white p-3 border-b border-gray-800">
           <div className="max-w-5xl mx-auto">
               <div className="flex justify-between items-center mb-2">
                   <h1 className="text-lg font-bold">Urología TecSalud</h1>
                   <div className="text-xs flex items-center font-mono bg-gray-800 p-1 rounded">
+                      <button
+                          onClick={() => setShowRotationModal(true)}
+                          className="px-1.5 py-1 rounded transition mr-1 text-orange-400 hover:bg-orange-950/50 flex items-center gap-1 font-sans font-bold text-[10px]"
+                          title="Rotación HZH y Rol de Guardias"
+                      >
+                          <MapPin size={13}/> HZH
+                      </button>
                       <button onClick={()=>setReaderMode(!readerMode)} className={`p-1 rounded transition mr-1 ${readerMode?'text-amber-500 bg-amber-900/30':'text-gray-400 hover:text-white'}`} title="Modo Lectura (Kindle)">
                           <BookOpen size={16}/>
                       </button>
                       <button onClick={()=>setPrivacyMode(!privacyMode)} className={`p-1 rounded transition ${privacyMode?'text-red-400 bg-red-900/30':'text-gray-400 hover:text-white'}`} title="Modo Privacidad">
                           {privacyMode ? <EyeOff size={16}/> : <Eye size={16}/>}
                       </button>
-                      <span className="uppercase text-gray-300 mx-2 border-l border-gray-600 pl-2">{getUserName()}</span>
+                      <span className="uppercase text-gray-200 mx-1.5 border-l border-gray-600 pl-2 flex items-center gap-1">
+                          <span className={`w-2 h-2 rounded-full ${currentUserProfile.colorObj.dot}`} />
+                          {getUserName()}
+                          {currentUserProfile.roleShort && currentUserProfile.isResident && (
+                              <span className="text-[9px] font-black px-1 rounded bg-gray-700 text-gray-300">{currentUserProfile.roleShort}</span>
+                          )}
+                      </span>
                       <button onClick={handleLogout} className="text-gray-400 hover:text-white p-1"><LogOut size={14}/></button>
                   </div>
               </div>
@@ -154,13 +222,27 @@ export default function App() {
               </nav>
           </div>
         </header>
+
+        {/* Aviso automático de fin de mes para seleccionar residentes en HZH */}
+        {endOfMonthPrompt.show && (
+            <div className="bg-orange-500 text-white px-3 py-2 text-xs font-bold flex items-center justify-between max-w-5xl mx-auto w-full shadow-sm">
+                <span>📅 Fin de mes: Selecciona qué residentes rotarán en Zambrano (HZH) el próximo mes ({endOfMonthPrompt.targetMonth})</span>
+                <button
+                    onClick={() => setShowRotationModal(true)}
+                    className="bg-white text-orange-600 px-2.5 py-1 rounded-lg font-black text-[11px] flex-shrink-0 ml-2 shadow-sm"
+                >
+                    Configurar HZH
+                </button>
+            </div>
+        )}
+
         <main className="flex-1 p-2 max-w-5xl mx-auto w-full pb-safe">
-          {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
-          {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
-          {view === 'discharges' && <Discharges user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} />}
+          {view === 'census' && <Census user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} settingsMeta={settingsMeta} onOpenRotation={() => setShowRotationModal(true)} />}
+          {view === 'or' && <Surgery user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} settingsMeta={settingsMeta} onOpenRotation={() => setShowRotationModal(true)} />}
+          {view === 'discharges' && <Discharges user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} settingsMeta={settingsMeta} />}
         </main>
         <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v81.2 Pro</span>
+          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v82.0 Pro</span>
           <button onClick={() => setShowAdmin(true)} className="opacity-40 hover:opacity-100 transition-opacity ml-2 px-2 py-1 rounded bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white flex items-center gap-1" title="Admin Panel"><Lock size={12}/> Admin</button>
         </footer>
       </div>
