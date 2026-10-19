@@ -4,7 +4,7 @@ import { collection, onSnapshot, updateDoc, doc, setDoc, deleteDoc, query, order
 import { calculateLOS, downloadCSV, calculateAge, applyPrivacy, normalizeText } from '../utils';
 import PatientDetail from './PatientDetail';
 import PatientFormModal from './PatientFormModal';
-import { Plus, CheckSquare, Square, LogOut, Search, X, SlidersHorizontal, RotateCcw, FileCheck2 } from 'lucide-react';
+import { Plus, CheckSquare, Square, LogOut, Search, X, SlidersHorizontal, RotateCcw, FileCheck2, Megaphone } from 'lucide-react';
 
 export default function Census({ user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
   const [patients, setPatients] = useState([]);
@@ -17,7 +17,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
   const [filterRes, setFilterRes] = useState('');
   const [filterHosp, setFilterHosp] = useState('');
   const [filterType, setFilterType] = useState('');
-  const [quickFilter, setQuickFilter] = useState('all'); // 'all' | 'pending_visit' | 'has_pending' | 'pre_discharge' | 'ready_discharge'
+  const [quickFilter, setQuickFilter] = useState('all'); // 'all' | 'handover' | 'pending_visit' | 'has_pending' | 'pre_discharge' | 'ready_discharge'
   const [sortBy, setSortBy] = useState('bed'); // 'bed' | 'los' | 'hospital' | 'name'
   const [showFilters, setShowFilters] = useState(false);
 
@@ -34,6 +34,26 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
     e.stopPropagation();
     const newStatus = p.status === 'done' ? 'pending' : 'done';
     await updateDoc(doc(db, "patients", p.id), { status: newStatus });
+  };
+
+  // Toggle para marcar/desmarcar pacientes que se van a comentar en la Entrega
+  const toggleHandover = async (e, p) => {
+    e.stopPropagation();
+    await updateDoc(doc(db, "patients", p.id), {
+      forHandover: !p.forHandover
+    });
+  };
+
+  const clearHandoverMarks = async () => {
+    const marked = patients.filter(p => p.forHandover);
+    if (marked.length === 0) return;
+    if (!confirm(`¿Desmarcar los ${marked.length} paciente(s) de la lista de Entrega?`)) return;
+    try {
+      await Promise.all(marked.map(p => updateDoc(doc(db, "patients", p.id), { forHandover: false })));
+      if (quickFilter === 'handover') setQuickFilter('all');
+    } catch (err) {
+      alert("Error al limpiar marcas de entrega: " + err.message);
+    }
   };
 
   // Toggle para pacientes que YA están dados de alta médicamente pero siguen en cama (trámite/aseguradora)
@@ -78,7 +98,8 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
     const withPendingTasks = patients.filter(p => p.hasPending).length;
     const preDischarge = patients.filter(p => p.preDischarge && !p.readyForDischarge).length;
     const readyDischarge = patients.filter(p => p.readyForDischarge).length;
-    return { total, activeCount: active.length, pendingVisit, withPendingTasks, preDischarge, readyDischarge };
+    const forHandover = patients.filter(p => p.forHandover).length;
+    return { total, activeCount: active.length, pendingVisit, withPendingTasks, preDischarge, readyDischarge, forHandover };
   }, [patients]);
 
   // Hospitales presentes en el censo + catálogo
@@ -110,6 +131,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
         if (filterHosp && (p.hospital || '') !== filterHosp) return false;
         if (filterType && p.type !== filterType) return false;
 
+        if (quickFilter === 'handover' && !p.forHandover) return false;
         if (quickFilter === 'pending_visit' && (p.status === 'done' || p.type === 'NOVER')) return false;
         if (quickFilter === 'has_pending' && !p.hasPending) return false;
         if (quickFilter === 'pre_discharge' && !p.preDischarge) return false;
@@ -259,6 +281,12 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                  Todos <span className="opacity-80">({stats.total})</span>
              </button>
              <button
+                 onClick={() => setQuickFilter(quickFilter === 'handover' ? 'all' : 'handover')}
+                 className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'handover' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60'}`}
+             >
+                 📢 Entrega <span>({stats.forHandover})</span>
+             </button>
+             <button
                  onClick={() => setQuickFilter(quickFilter === 'pending_visit' ? 'all' : 'pending_visit')}
                  className={`px-2.5 py-1 rounded-full whitespace-nowrap transition flex items-center gap-1 ${quickFilter === 'pending_visit' ? 'bg-red-600 text-white shadow-sm' : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60'}`}
              >
@@ -283,6 +311,15 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                  ⚠️ Pend <span>({stats.withPendingTasks})</span>
              </button>
          </div>
+
+         {quickFilter === 'handover' && stats.forHandover > 0 && (
+             <div className="flex justify-between items-center bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 px-2.5 py-1.5 rounded-lg text-[11px]">
+                 <span className="font-bold text-indigo-800 dark:text-indigo-200">📢 Mostrando {stats.forHandover} paciente(s) para Entrega</span>
+                 <button onClick={clearHandoverMarks} className="text-indigo-600 dark:text-indigo-300 font-bold underline hover:opacity-80">
+                     Desmarcar todos
+                 </button>
+             </div>
+         )}
 
          {/* Panel desplegable de selectores (Tratante, Residente, Hospital, Tipo, Orden) */}
          {showFilters && (
@@ -350,6 +387,11 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                                 A
                             </span>
                         )}
+                        {p.forHandover && (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-600 text-white shadow-sm flex items-center gap-1">
+                                📢 ENTREGA
+                            </span>
+                        )}
                         {p.readyForDischarge && (
                             <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-sm flex items-center gap-1">
                                 ✅ ALTA
@@ -375,14 +417,21 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                      </div>
                   </div>
 
-                  {/* Controles laterales: Check de visita, Alta en cama y Egreso definitivo */}
+                  {/* Controles laterales: Check de visita, Entrega, Alta en cama y Egreso definitivo */}
                   <div className="flex flex-col items-end justify-between self-stretch gap-2 flex-shrink-0">
                       <button onClick={(e) => toggleStatus(e, p)} title={p.status === 'done' ? 'Visitado hoy' : 'Pendiente de visita'}>
                           {p.status === 'done' ? <CheckSquare size={28} className={p.type === 'SND' ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-blue-400"}/> : <Square size={28} className={p.type === 'SND' ? "text-orange-500" : "text-red-500"}/>}
                       </button>
 
-                      <div className="flex items-center gap-1.5 mt-auto">
-                          <span className="text-[10px] font-bold opacity-60 text-slate-800 dark:text-slate-200">{calculateLOS(p.admissionDate)}d</span>
+                      <div className="flex items-center gap-1 mt-auto">
+                          <span className="text-[10px] font-bold opacity-60 text-slate-800 dark:text-slate-200 mr-0.5">{calculateLOS(p.admissionDate)}d</span>
+                          <button
+                              onClick={(e) => toggleHandover(e, p)}
+                              className={`p-1.5 rounded-lg border transition flex items-center gap-0.5 text-[10px] font-bold ${p.forHandover ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-black/5 dark:bg-white/10 border-transparent text-slate-600 dark:text-slate-300 hover:bg-indigo-100 hover:text-indigo-700'}`}
+                              title={p.forHandover ? "Marcado para comentar en Entrega. Toca para quitar." : "Marcar para comentar en Entrega"}
+                          >
+                              <Megaphone size={13}/>
+                          </button>
                           <button
                               onClick={(e) => toggleReadyForDischarge(e, p)}
                               className={`p-1.5 rounded-lg border transition flex items-center gap-0.5 text-[10px] font-bold ${p.readyForDischarge ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-black/5 dark:bg-white/10 border-transparent text-slate-600 dark:text-slate-300 hover:bg-emerald-100 hover:text-emerald-700'}`}

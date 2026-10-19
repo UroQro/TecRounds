@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import { collection, doc, addDoc, updateDoc, arrayUnion, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { calculateAge, calculateDaysSince, calculateTreatmentDay, calculateBMI, getLocalISODate, applyPrivacy, normalizeText } from '../utils';
-import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive, Scissors, Search, X, FileCheck2 } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Link as LinkIcon, Copy, Briefcase, Archive, Scissors, Search, X, FileCheck2, Megaphone } from 'lucide-react';
 import PatientFormModal from './PatientFormModal';
 
 export default function PatientDetail({ patient: initialPatient, onClose, user, dynamicResidents, dynamicDoctors, dynamicLocations, privacyMode }) {
@@ -85,6 +85,13 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
   }, [initialPatient.id, patient.discharged]);
 
   const getUserName = () => user.email ? user.email.split('@')[0] : 'User';
+
+  const toggleHandover = async () => {
+      const coll = patient.discharged ? "archived_patients" : "patients";
+      await updateDoc(doc(db, coll, patient.id), {
+          forHandover: !patient.forHandover
+      });
+  };
 
   const togglePreDischarge = async () => {
       const coll = patient.discharged ? "archived_patients" : "patients";
@@ -198,10 +205,15 @@ export default function PatientDetail({ patient: initialPatient, onClose, user, 
                   {antecedents.has && <span className="w-4 h-4 rounded bg-orange-500 text-white text-[10px] font-black inline-flex items-center justify-center shadow-sm" title="Hipertenso (HAS)">H</span>}
                   {hasAllergy && <span className="w-4 h-4 rounded bg-red-600 text-white text-[10px] font-black inline-flex items-center justify-center shadow-sm" title={`Alergias: ${patient.allergies}`}>A</span>}
                   {bmi && <span className="bg-white dark:bg-slate-700 px-1 rounded font-bold text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-slate-600">IMC: {bmi}</span>}
+                  {patient.forHandover && <span className="bg-indigo-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">📢 ENTREGA</span>}
                   {patient.readyForDischarge && <span className="bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">✅ ALTA</span>}
               </div>
           </div>
           
+          <button onClick={toggleHandover} className={`p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 transition ${patient.forHandover ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-slate-700 text-gray-400'}`} title="Marcar para comentar en Entrega">
+              <Megaphone size={16}/>
+          </button>
+
           <button onClick={() => setShowSurgeryModal(true)} className="p-2 rounded-full shadow border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-orange-500 hover:bg-orange-50 dark:hover:bg-slate-600" title="Programar Cirugía">
               <Scissors size={16}/>
           </button>
