@@ -381,10 +381,64 @@ const addDaysISO = (dateStr, deltaDays) => {
     return new Date(d - offset).toISOString().slice(0, 10);
 };
 
+// Obtiene todos los fines de semana del mes seleccionado (YYYY-MM) para configurar reglas de Fin Libre
+export const getMonthWeekends = (monthStr) => {
+    if (!monthStr) return [];
+    const [y, m] = monthStr.split('-').map(Number);
+    if (!y || !m) return [];
+    const totalDays = new Date(y, m, 0).getDate();
+    const weekends = [];
+    const seenSaturdays = new Set();
+
+    for (let d = 1; d <= totalDays; d++) {
+        const dStr = `${monthStr}-${String(d).padStart(2, '0')}`;
+        const dateObj = new Date(dStr + 'T12:00:00');
+        const dow = dateObj.getDay(); // 0=Dom, 5=Vie, 6=Sáb
+        if (dow === 6 || (dow === 0 && d === 1)) {
+            const satStr = dow === 6 ? dStr : addDaysISO(dStr, -1);
+            if (seenSaturdays.has(satStr)) continue;
+            seenSaturdays.add(satStr);
+            const friStr = addDaysISO(satStr, -1);
+            const sunStr = addDaysISO(satStr, 1);
+
+            const fmtShort = (iso) => {
+                const o = new Date(iso + 'T12:00:00');
+                return o.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' }).replace('.', '');
+            };
+
+            const num = weekends.length + 1;
+            weekends.push({
+                id: `wk-${satStr}`,
+                num,
+                friStr,
+                satStr,
+                sunStr,
+                labelVieDom: `Fin ${num}: ${fmtShort(friStr)} – ${fmtShort(sunStr)}`,
+                labelSabDom: `Fin ${num}: ${fmtShort(satStr)} – ${fmtShort(sunStr)}`
+            });
+        }
+    }
+    return weekends;
+};
+
+// Devuelve las reglas de Fin Libre activas para una fecha específica
+export const getFreeWeekendRulesForDate = (dateStr, freeWeekends = []) => {
+    if (!dateStr || !Array.isArray(freeWeekends)) return [];
+    return freeWeekends.filter(rule =>
+        rule &&
+        rule.resident &&
+        rule.startDate &&
+        rule.endDate &&
+        dateStr >= rule.startDate &&
+        dateStr <= rule.endDate
+    );
+};
+
 export const getGuardForDate = (dateStr, settingsMeta = {}) => {
-    if (!dateStr) return { guardia: '', posguardia: '' };
+    if (!dateStr) return { guardia: '', posguardia: '', freeResidents: [] };
     const rot = settingsMeta?.hzhRotation || {};
     const schedule = rot.schedule || {};
+    const freeWeekends = rot.freeWeekends || [];
     const rawCycle = rot.cycleOrder || [];
     // Garantizar que si hay <= 3 elementos en el ciclo guardado, se respete la frecuencia máxima ABCD (mínimo 4 slots con 'Nadie')
     const effectiveCycle = rawCycle.length > 0 && rawCycle.length < 4
@@ -392,25 +446,40 @@ export const getGuardForDate = (dateStr, settingsMeta = {}) => {
         : rawCycle;
 
     const resolveSingleDayGuard = (dStr) => {
-        if (schedule[dStr]?.guardia) return schedule[dStr].guardia;
-        const startStr = rot.cycleStartDate;
-        if (effectiveCycle.length > 0 && startStr) {
-            const d1 = new Date(startStr + 'T12:00:00');
-            const d2 = new Date(dStr + 'T12:00:00');
-            const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
-            if (diffDays >= 0) {
-                return effectiveCycle[diffDays % effectiveCycle.length] || '';
+        const activeRules = getFreeWeekendRulesForDate(dStr, freeWeekends);
+        const freeNormSet = new Set(activeRules.map(r => normalizeText(r.resident)));
+
+        let candidate = '';
+        if (schedule[dStr]?.guardia) {
+            candidate = schedule[dStr].guardia;
+        } else {
+            const startStr = rot.cycleStartDate;
+            if (effectiveCycle.length > 0 && startStr) {
+                const d1 = new Date(startStr + 'T12:00:00');
+                const d2 = new Date(dStr + 'T12:00:00');
+                const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+                if (diffDays >= 0) {
+                    candidate = effectiveCycle[diffDays % effectiveCycle.length] || '';
+                }
             }
         }
-        return '';
+
+        // Si el residente que tocaba en este día tiene regla de Fin Libre activa, NO tiene guardia
+        if (candidate && candidate !== 'Nadie' && freeNormSet.has(normalizeText(candidate))) {
+            const matchingRule = activeRules.find(r => normalizeText(r.resident) === normalizeText(candidate));
+            return matchingRule?.replacement || 'Nadie';
+        }
+
+        return candidate;
     };
 
     const guardia = resolveSingleDayGuard(dateStr);
     // Posguardia se asigna 100% automáticamente a quien estuvo de guardia ayer (si ayer estuvo 'Nadie', hoy posguardia es 'Nadie')
     const yesterdayStr = addDaysISO(dateStr, -1);
     const posguardia = resolveSingleDayGuard(yesterdayStr) || '';
+    const freeResidents = getFreeWeekendRulesForDate(dateStr, freeWeekends).map(r => r.resident);
 
-    return { guardia, posguardia };
+    return { guardia, posguardia, freeResidents };
 };
 
 export const isEndOfMonthRotationPrompt = (settingsMeta = {}) => {

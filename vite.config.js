@@ -4,6 +4,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true
+      },
       includeAssets: ['favicon.ico', 'icon.svg'],
       manifest: {
         name: 'Urología Tecsalud',

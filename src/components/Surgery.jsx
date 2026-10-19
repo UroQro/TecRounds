@@ -40,7 +40,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
   const [prefillSlot, setPrefillSlot] = useState(null); // { date, time }
   const [transferringSurgery, setTransferringSurgery] = useState(null);
   const [activeSurgeryDetail, setActiveSurgeryDetail] = useState(null);
-  const [editingDayGuard, setEditingDayGuard] = useState(false);
 
   const { allowed: canManageSchedule, profile: currentUserProfile } = useMemo(
     () => canUserManageSchedule(user, settingsMeta),
@@ -78,25 +77,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
     [resiList, settingsMeta]
   );
   const selectedDayGuard = useMemo(() => getGuardForDate(selectedDate, settingsMeta), [selectedDate, settingsMeta]);
-
-  const handleQuickGuardChange = async (value) => {
-    if (!canManageSchedule) return;
-    try {
-      const currentHzh = settingsMeta?.hzhRotation || {};
-      const currentSchedule = { ...(currentHzh.schedule || {}) };
-      const existingForDate = currentSchedule[selectedDate] || {};
-      currentSchedule[selectedDate] = { ...existingForDate, guardia: value };
-
-      await setDoc(doc(db, 'metadata', 'settings'), {
-        hzhRotation: {
-          ...currentHzh,
-          schedule: currentSchedule
-        }
-      }, { merge: true });
-    } catch (err) {
-      alert('Error al guardar guardia: ' + err.message);
-    }
-  };
 
   // Si el usuario selecciona una fecha anterior a la ventana cargada, ampliamos daysBack automáticamente
   useEffect(() => {
@@ -604,16 +584,7 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                         </span>
                       );
                     })() : (
-                      canManageSchedule ? (
-                        <button
-                          onClick={() => setEditingDayGuard(true)}
-                          className="text-[10px] font-bold text-gray-400 hover:text-orange-600 underline"
-                        >
-                          Asignar
-                        </button>
-                      ) : (
-                        <span className="text-[10px] font-semibold text-gray-400">Sin asignar</span>
-                      )
+                      <span className="text-[10px] font-semibold text-gray-400">Sin asignar</span>
                     )}
                   </div>
 
@@ -636,66 +607,27 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                       <span className="text-[10px] font-semibold text-gray-400">Sin asignar</span>
                     )}
                   </div>
+
+                  {selectedDayGuard.freeResidents?.length > 0 && (
+                    <>
+                      <span className="text-gray-300 dark:text-slate-600">|</span>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        🏖️ Fin libre: {selectedDayGuard.freeResidents.join(', ')}
+                      </span>
+                    </>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-1 ml-auto">
-                  {canManageSchedule && (
-                    <button
-                      onClick={() => setEditingDayGuard(!editingDayGuard)}
-                      className="text-[10px] font-bold px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-orange-400 transition"
-                      title="Asignar guardia de este día"
-                    >
-                      {editingDayGuard ? 'Cerrar' : '✏️ Guardia'}
-                    </button>
-                  )}
-                  {onOpenRotation && (
-                    <button
-                      onClick={onOpenRotation}
-                      className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/70 text-orange-700 dark:text-orange-300 hover:bg-orange-100 transition"
-                      title="Ver rotación mensual HZH y rol de guardias"
-                    >
-                      📍 Rol Mes
-                    </button>
-                  )}
-                </div>
+                {onOpenRotation && (
+                  <button
+                    onClick={onOpenRotation}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/70 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition flex items-center gap-1 ml-auto"
+                    title="Abrir calendario de guardias"
+                  >
+                    <CalendarIcon size={12} /> Calendario de Guardias
+                  </button>
+                )}
               </div>
-
-              {/* Editor rápido inline de Guardia para el día seleccionado */}
-              {editingDayGuard && canManageSchedule && (
-                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 items-center">
-                  <div>
-                    <label className="text-[10px] font-bold text-orange-700 dark:text-orange-300 block mb-0.5">🛡️ En Guardia ({selectedDate}):</label>
-                    <select
-                      value={selectedDayGuard.guardia || ''}
-                      onChange={e => handleQuickGuardChange(e.target.value)}
-                      className="w-full p-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
-                    >
-                      <option value="">— Sin asignar —</option>
-                      <option value="Nadie">🚫 Nadie (Sin guardia)</option>
-                      {hzhResidents.length > 0 ? (
-                        <>
-                          <optgroup label="📍 Rotando en HZH">
-                            {hzhResidents.map(r => <option key={r} value={r}>{r}</option>)}
-                          </optgroup>
-                          {otherResidents.length > 0 && (
-                            <optgroup label="Otros Residentes">
-                              {otherResidents.map(r => <option key={r} value={r}>{r}</option>)}
-                            </optgroup>
-                          )}
-                        </>
-                      ) : (
-                        orderedResidents.map(r => <option key={r} value={r}>{r}</option>)
-                      )}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 block mb-0.5">💤 Posguardia (Automática):</label>
-                    <div className="p-1.5 rounded border border-dashed border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/60 text-xs font-bold text-slate-600 dark:text-slate-300">
-                      {selectedDayGuard.posguardia || '— Guardia de ayer —'}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
