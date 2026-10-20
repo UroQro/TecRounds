@@ -385,7 +385,12 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
 
   const selectedDateFormatted = useMemo(() => {
     const d = new Date(selectedDate + 'T12:00:00');
-    return d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    const dayName = d.toLocaleDateString('es-MX', { weekday: 'short' }).replace('.', '');
+    const capitalizedDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = String(d.getFullYear()).slice(-2);
+    return `${capitalizedDay}, ${day}/${month}/${year}`;
   }, [selectedDate]);
 
   // Alturas dinámicas: horas vacías muy compactas (26px) y horas con cirugía amplias (92px)
@@ -568,55 +573,55 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
         {/* Barra de Navegación de Fecha para Vista Día (Google Calendar) */}
         {viewMode === 'day' && (
           <div className="pt-1.5 border-t border-gray-100 dark:border-slate-700 space-y-2">
-            <div className="flex items-center justify-between gap-1">
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1 min-w-0">
                 <button
                   onClick={() => shiftSelectedDate(-1)}
-                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200"
+                  className="p-1 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex-shrink-0"
                   title="Día anterior"
                 >
                   <ChevronLeft size={16} />
                 </button>
                 <button
                   onClick={() => shiftSelectedDate(1)}
-                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200"
+                  className="p-1 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex-shrink-0"
                   title="Día siguiente"
                 >
                   <ChevronRight size={16} />
                 </button>
-                <div className="ml-1">
-                  <div className="text-xs sm:text-sm font-black capitalize text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                    <span>{selectedDateFormatted}</span>
+                <div className="ml-1 min-w-0">
+                  <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1 leading-tight">
+                    <span className="whitespace-nowrap">{selectedDateFormatted}</span>
                     {selectedDate === today ? (
-                      <span className="text-[10px] font-black bg-blue-600 text-white px-1.5 py-0.5 rounded-full">HOY</span>
+                      <span className="text-[9px] font-black bg-blue-600 text-white px-1.5 py-0.5 rounded-full flex-shrink-0">HOY</span>
                     ) : selectedDate > today ? (
-                      <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 px-1.5 py-0.5 rounded-full">
+                      <span className="text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 px-1.5 py-0.5 rounded-full flex-shrink-0">
                         Futura
                       </span>
                     ) : (
-                      <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 rounded-full">
+                      <span className="text-[9px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 rounded-full flex-shrink-0">
                         Pasada
                       </span>
                     )}
                   </div>
-                  <div className="text-[10px] text-gray-500 dark:text-slate-400">
+                  <div className="text-[10px] text-gray-500 dark:text-slate-400 leading-tight truncate">
                     {daySurgeries.length} cirugía(s) programada(s)
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 {selectedDate !== today && (
                   <button
                     onClick={() => setSelectedDate(today)}
-                    className="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/60 transition flex items-center gap-1 shadow-sm whitespace-nowrap"
+                    className="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px] font-bold hover:bg-blue-100 dark:hover:bg-blue-900/60 transition flex items-center gap-1 shadow-sm whitespace-nowrap"
                     title="Volver a la fecha de hoy"
                   >
-                    <RotateCcw size={12} /> Ir a Hoy
+                    <RotateCcw size={11} /> Ir a Hoy
                   </button>
                 )}
                 <label
-                  className="relative p-1.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer flex items-center justify-center transition shadow-sm"
+                  className="relative p-1.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer flex items-center justify-center transition shadow-sm flex-shrink-0"
                   title="Seleccionar fecha"
                 >
                   <CalendarIcon size={15} />
