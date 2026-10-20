@@ -127,12 +127,12 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
   };
 
   const getCardColor = (p) => {
-    if (p.type === 'NOVER') return "bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-600 text-gray-400";
-    if (p.readyForDischarge) return "bg-emerald-50/70 dark:bg-emerald-950/40 border-l-[8px] border-emerald-500 dark:border-emerald-400 shadow-md ring-1 ring-emerald-200 dark:ring-emerald-800/60";
-    if (p.preDischarge) return "bg-white dark:bg-purple-900/30 border-l-[8px] border-purple-600 dark:border-purple-500 shadow-md";
-    if (p.hasPending) return "bg-white dark:bg-yellow-900/30 border-l-[8px] border-yellow-500 dark:border-yellow-500 shadow-md";
-    if (p.type === 'SND') { return p.status === 'done' ? "bg-white dark:bg-green-900/30 border-l-[8px] border-green-600 dark:border-green-500 shadow-md" : "bg-white dark:bg-orange-900/30 border-l-[8px] border-orange-500 dark:border-orange-500 shadow-md"; }
-    return p.status === 'done' ? "bg-white dark:bg-blue-900/30 border-l-[8px] border-blue-600 dark:border-blue-500 shadow-md" : "bg-white dark:bg-slate-800 border-l-[8px] border-red-600 dark:border-red-500 shadow-md";
+    if (p.type === 'NOVER') return "bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-400";
+    if (p.readyForDischarge) return "bg-emerald-50/70 dark:bg-emerald-950/40 border-l-[6px] border-emerald-500 dark:border-emerald-400 shadow-sm ring-1 ring-emerald-200 dark:ring-emerald-800/60";
+    if (p.preDischarge) return "bg-white dark:bg-purple-950/30 border-l-[6px] border-purple-600 dark:border-purple-500 shadow-sm";
+    if (p.hasPending) return "bg-white dark:bg-yellow-950/30 border-l-[6px] border-yellow-500 dark:border-yellow-500 shadow-sm";
+    if (p.type === 'SND') { return p.status === 'done' ? "bg-white dark:bg-green-950/30 border-l-[6px] border-green-600 dark:border-green-500 shadow-sm" : "bg-white dark:bg-orange-950/30 border-l-[6px] border-orange-500 dark:border-orange-500 shadow-sm"; }
+    return p.status === 'done' ? "bg-white dark:bg-blue-950/30 border-l-[6px] border-blue-600 dark:border-blue-500 shadow-sm" : "bg-white dark:bg-slate-800 border-l-[6px] border-red-600 dark:border-red-500 shadow-sm";
   };
 
   // Estadísticas rápidas del censo
@@ -461,11 +461,11 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
             const hasAllergy = cleanAllergies !== '' && !['negadas', 'negada', 'negado', 'ninguna', 'ninguno', 'no', 'sin alergias', 's/a', 'n/a', 'na', '-'].includes(cleanAllergies);
             const resProfile = getMemberProfile(p.resident, settingsMeta);
             return (
-            <div key={p.id} onClick={() => setSelectedPatient(p)} className={`p-3 rounded-xl cursor-pointer active:scale-[0.99] transition ${getCardColor(p)}`}>
+            <div key={p.id} onClick={() => setSelectedPatient(p)} className={`p-2.5 sm:p-3 rounded-xl cursor-pointer active:scale-[0.99] transition ${getCardColor(p)}`}>
                <div className="flex justify-between items-start gap-2">
                   <div className="flex-1 min-w-0">
                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                        <span className="bg-black text-white px-2 py-0.5 rounded font-black text-base shadow-sm border border-slate-700">{applyPrivacy(p.bed, privacyMode, 'bed')}</span>
+                        <span className="bg-black text-white px-1.5 py-0.5 rounded font-black text-sm sm:text-base shadow-sm border border-slate-700">{applyPrivacy(p.bed, privacyMode, 'bed')}</span>
                         {p.hospital && <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-900 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">{p.hospital}</span>}
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 uppercase ${p.type==='NOVER'?'bg-gray-100 dark:bg-slate-700 text-gray-500':'bg-white dark:bg-slate-800 dark:text-white'}`}>{p.type}</span>
                         {p.antecedents?.dm && (
@@ -504,10 +504,10 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                             </span>
                         )}
                      </div>
-                     <h3 className="font-extrabold text-base sm:text-lg text-blue-700 dark:text-blue-300 leading-tight mb-0.5 truncate">{applyPrivacy(p.name, privacyMode, 'name')}</h3>
-                     <p className="text-xs opacity-80 mb-1.5 dark:text-slate-300 text-gray-700 line-clamp-1">{calculateAge(p.dob)} años • {p.diagnosis}</p>
+                     <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white leading-tight mb-0.5 truncate">{applyPrivacy(p.name, privacyMode, 'name')}</h3>
+                     <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 line-clamp-1 mb-1">{calculateAge(p.dob)} años • {p.diagnosis}</p>
                      
-                     <div className="text-[11px] flex justify-between items-center bg-black/5 dark:bg-white/5 px-2 py-1 rounded dark:text-slate-300 text-slate-700">
+                     <div className="text-[10px] sm:text-[11px] flex justify-between items-center bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-md dark:text-slate-300 text-slate-700">
                         <span className="truncate pr-2 opacity-85">{applyPrivacy(p.doctor, privacyMode, 'name')}</span>
                         {p.resident && (
                             <span className={`font-bold flex-shrink-0 px-1.5 py-0.5 rounded border text-[10px] flex items-center gap-1 ${resProfile.colorObj.badge}`}>
@@ -519,33 +519,33 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                   </div>
 
                   {/* Controles laterales: Check de visita, Entrega, Alta en cama y Egreso definitivo */}
-                  <div className="flex flex-col items-end justify-between self-stretch gap-2 flex-shrink-0">
+                  <div className="flex flex-col items-end justify-between self-stretch gap-1.5 flex-shrink-0">
                       <button onClick={(e) => toggleStatus(e, p)} title={p.status === 'done' ? 'Visitado hoy' : 'Pendiente de visita'}>
-                          {p.status === 'done' ? <CheckSquare size={28} className={p.type === 'SND' ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-blue-400"}/> : <Square size={28} className={p.type === 'SND' ? "text-orange-500" : "text-red-500"}/>}
+                          {p.status === 'done' ? <CheckSquare size={26} className={p.type === 'SND' ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-blue-400"}/> : <Square size={26} className={p.type === 'SND' ? "text-orange-500" : "text-red-500"}/>}
                       </button>
 
                       <div className="flex items-center gap-1 mt-auto">
                           <span className="text-[10px] font-bold opacity-60 text-slate-800 dark:text-slate-200 mr-0.5">{calculateLOS(p.admissionDate)}d</span>
                           <button
                               onClick={(e) => toggleHandover(e, p)}
-                              className={`p-1.5 rounded-lg border transition flex items-center gap-0.5 text-[10px] font-bold ${p.forHandover ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-black/5 dark:bg-white/10 border-transparent text-slate-600 dark:text-slate-300 hover:bg-indigo-100 hover:text-indigo-700'}`}
+                              className={`p-1 rounded-md border transition flex items-center gap-0.5 text-[10px] font-bold ${p.forHandover ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-black/5 dark:bg-white/10 border-transparent text-slate-600 dark:text-slate-300 hover:bg-indigo-100 hover:text-indigo-700'}`}
                               title={p.forHandover ? "Marcado para comentar en Entrega. Toca para quitar." : "Marcar para comentar en Entrega"}
                           >
-                              <Megaphone size={13}/>
+                              <Megaphone size={12}/>
                           </button>
                           <button
                               onClick={(e) => toggleReadyForDischarge(e, p)}
-                              className={`p-1.5 rounded-lg border transition flex items-center gap-0.5 text-[10px] font-bold ${p.readyForDischarge ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-black/5 dark:bg-white/10 border-transparent text-slate-600 dark:text-slate-300 hover:bg-emerald-100 hover:text-emerald-700'}`}
+                              className={`p-1 rounded-md border transition flex items-center gap-0.5 text-[10px] font-bold ${p.readyForDischarge ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-black/5 dark:bg-white/10 border-transparent text-slate-600 dark:text-slate-300 hover:bg-emerald-100 hover:text-emerald-700'}`}
                               title={p.readyForDischarge ? "Alta firmada (esperando desocupar cama). Toca para quitar." : "Marcar Alta Lista (sigue en cama)"}
                           >
-                              <FileCheck2 size={13}/>
+                              <FileCheck2 size={12}/>
                           </button>
                           <button
                               onClick={(e) => dischargePatient(e, p)}
-                              className="bg-black/10 dark:bg-white/10 p-1.5 rounded-lg hover:bg-red-100 hover:text-red-500 dark:text-slate-300 transition"
+                              className="bg-black/10 dark:bg-white/10 p-1 rounded-md hover:bg-red-100 hover:text-red-500 dark:text-slate-300 transition"
                               title="Egresar del censo (Ya desocupó cama)"
                           >
-                              <LogOut size={13}/>
+                              <LogOut size={12}/>
                           </button>
                       </div>
                   </div>

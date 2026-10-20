@@ -242,7 +242,7 @@ export default function App() {
           {view === 'discharges' && <Discharges user={user} dynamicResidents={dynamicResidents} dynamicDoctors={dynamicDoctors} dynamicLocations={dynamicLocations} privacyMode={privacyMode} settingsMeta={settingsMeta} />}
         </main>
         <footer className="bg-gray-200 dark:bg-black p-3 text-center text-[10px] text-slate-500 dark:text-slate-500 border-t border-gray-300 dark:border-gray-800 pb-8 flex justify-center items-center gap-2">
-          <span>© 2026 Rosenzweig/Gemini</span> <span className="opacity-50">v82.0 Pro</span>
+          <span>CC {new Date().getFullYear()} Rosenz/ΑΩ</span> <span className="opacity-50">v82.0 Pro</span>
           <button onClick={() => setShowAdmin(true)} className="opacity-40 hover:opacity-100 transition-opacity ml-2 px-2 py-1 rounded bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white flex items-center gap-1" title="Admin Panel"><Lock size={12}/> Admin</button>
         </footer>
       </div>
