@@ -585,10 +585,18 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                   <ChevronRight size={16} />
                 </button>
                 <div className="ml-1">
-                  <div className="text-xs sm:text-sm font-black capitalize text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <div className="text-xs sm:text-sm font-black capitalize text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
                     <span>{selectedDateFormatted}</span>
-                    {selectedDate === today && (
+                    {selectedDate === today ? (
                       <span className="text-[10px] font-black bg-blue-600 text-white px-1.5 py-0.5 rounded-full">HOY</span>
+                    ) : selectedDate > today ? (
+                      <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 px-1.5 py-0.5 rounded-full">
+                        Futura
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 rounded-full">
+                        Pasada
+                      </span>
                     )}
                   </div>
                   <div className="text-[10px] text-gray-500 dark:text-slate-400">
@@ -601,9 +609,10 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                 {selectedDate !== today && (
                   <button
                     onClick={() => setSelectedDate(today)}
-                    className="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-bold"
+                    className="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/60 transition flex items-center gap-1 shadow-sm whitespace-nowrap"
+                    title="Volver a la fecha de hoy"
                   >
-                    Hoy
+                    <RotateCcw size={12} /> Ir a Hoy
                   </button>
                 )}
                 <label
