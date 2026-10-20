@@ -438,6 +438,19 @@ export const getFreeWeekendRulesForDate = (dateStr, freeWeekends = []) => {
     );
 };
 
+// Devuelve los periodos de Vacaciones activos para una fecha específica
+export const getVacationRulesForDate = (dateStr, vacations = []) => {
+    if (!dateStr || !Array.isArray(vacations)) return [];
+    return vacations.filter(rule =>
+        rule &&
+        rule.resident &&
+        rule.startDate &&
+        rule.endDate &&
+        dateStr >= rule.startDate &&
+        dateStr <= rule.endDate
+    );
+};
+
 // Fecha mínima a partir de la cual existen guardias en el calendario (octubre del año en curso; meses previos siempre en blanco)
 export const getMinGuardCalendarDate = () => {
     const curYear = getLocalISODate().slice(0, 4);
@@ -447,7 +460,7 @@ export const getMinGuardCalendarDate = () => {
 export const getGuardForDate = (dateStr, settingsMeta = {}) => {
     const minOctDate = getMinGuardCalendarDate();
     if (!dateStr || dateStr < minOctDate) {
-        return { guardia: '', posguardia: '', freeResidents: [] };
+        return { guardia: '', posguardia: '', freeResidents: [], vacationResidents: [] };
     }
     const rot = settingsMeta?.hzhRotation || {};
     const schedule = rot.schedule || {};
@@ -459,17 +472,36 @@ export const getGuardForDate = (dateStr, settingsMeta = {}) => {
         return getFreeWeekendRulesForDate(dStr, allRules);
     };
 
+    const getVacationsForDay = (dStr) => {
+        const mKey = dStr.slice(0, 7);
+        const monthVacs = rot.months?.[mKey]?.vacations;
+        const allVacs = Array.isArray(monthVacs) ? monthVacs : (rot.vacations || []);
+        // También revisar todas las vacaciones guardadas en cualquier mes por si una vacación cruza de mes
+        const crossMonthVacs = Object.values(rot.months || {}).flatMap(m => m?.vacations || []);
+        const combined = [...allVacs, ...crossMonthVacs];
+        const unique = Array.from(new Map(combined.filter(Boolean).map(v => [v.id || `${v.resident}-${v.startDate}`, v])).values());
+        return getVacationRulesForDate(dStr, unique);
+    };
+
     const resolveSingleDayGuard = (dStr) => {
         if (!dStr || dStr < minOctDate) return '';
         const activeRules = getRulesForDay(dStr);
+        const activeVacs = getVacationsForDay(dStr);
         const freeNormSet = new Set(activeRules.map(r => normalizeText(r.resident)));
+        const vacNormSet = new Set(activeVacs.map(r => normalizeText(r.resident)));
 
         // Solo leer guardias explícitamente guardadas/generadas en schedule (nunca proyectar automáticamente a otros meses)
         const candidate = schedule[dStr]?.guardia || '';
 
-        if (candidate && candidate !== 'Nadie' && freeNormSet.has(normalizeText(candidate))) {
-            const matchingRule = activeRules.find(r => normalizeText(r.resident) === normalizeText(candidate));
-            return matchingRule?.replacement || 'Nadie';
+        if (candidate && candidate !== 'Nadie') {
+            if (vacNormSet.has(normalizeText(candidate))) {
+                const matchingVac = activeVacs.find(r => normalizeText(r.resident) === normalizeText(candidate));
+                return matchingVac?.replacement || 'Nadie';
+            }
+            if (freeNormSet.has(normalizeText(candidate))) {
+                const matchingRule = activeRules.find(r => normalizeText(r.resident) === normalizeText(candidate));
+                return matchingRule?.replacement || 'Nadie';
+            }
         }
 
         return candidate;
@@ -480,8 +512,14 @@ export const getGuardForDate = (dateStr, settingsMeta = {}) => {
     const yesterdayStr = addDaysISO(dateStr, -1);
     const posguardia = resolveSingleDayGuard(yesterdayStr) || '';
     const freeResidents = getRulesForDay(dateStr).map(r => r.resident);
+    const vacationsToday = getVacationsForDay(dateStr);
+    const vacationResidents = vacationsToday.map(r => r.resident);
+    const activeAbsences = vacationsToday.map(r => ({
+        resident: r.resident,
+        type: r.type || 'vacaciones'
+    }));
 
-    return { guardia, posguardia, freeResidents };
+    return { guardia, posguardia, freeResidents, vacationResidents, activeAbsences };
 };
 
 export const isEndOfMonthRotationPrompt = (settingsMeta = {}) => {

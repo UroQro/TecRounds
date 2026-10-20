@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { X, ArrowUp, ArrowDown, Sparkles, Calendar, Check, Plus, Trash2, Palmtree, Lock, RotateCcw, Download, LayoutGrid, List } from 'lucide-react';
+import { X, ArrowUp, ArrowDown, Sparkles, Calendar, Check, Plus, Trash2, Palmtree, Plane, Lock, RotateCcw, Download, LayoutGrid, List } from 'lucide-react';
 import {
   getMemberProfile,
   getOrderedResidents,
@@ -10,6 +10,7 @@ import {
   buildGuardCycleABCD,
   getMonthWeekends,
   getFreeWeekendRulesForDate,
+  getVacationRulesForDate,
   getMinGuardCalendarDate,
   normalizeText
 } from '../utils';
@@ -21,11 +22,19 @@ const formatMobileGuardName = (name) => {
   const clean = String(name).replace(/^(dr\.?|dra\.?)\s+/i, '').trim();
   const parts = clean.split(/\s+/);
   if (parts.length === 1) return parts[0];
-  // Si el primer nombre es muy corto (ej. "Juan"), incluir inicial del segundo
   if (parts[0].length <= 6 && parts[1]) {
     return `${parts[0]} ${parts[1][0]}.`;
   }
   return parts[0];
+};
+
+const formatShortDateRange = (startStr, endStr) => {
+  if (!startStr || !endStr) return '';
+  const fmt = (iso) => {
+    const d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }).replace('.', '');
+  };
+  return `${fmt(startStr)} – ${fmt(endStr)}`;
 };
 
 // Colores hexadecimales por rango para renderizar el calendario descargable en alta resolución
@@ -61,14 +70,15 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
   // Siempre abrir por defecto en el mes en curso
   const [monthStr, setMonthStr] = useState(currentMonthStr);
 
-  // Configuración independiente por cada mes (months[YYYY-MM] = { residents, cycleOrder, freeWeekends })
+  // Configuración independiente por cada mes (months[YYYY-MM] = { residents, cycleOrder, freeWeekends, vacations })
   const [monthsData, setMonthsData] = useState(() => {
     const existingMonths = { ...(currentRot.months || {}) };
-    if (!existingMonths[currentMonthStr] && (currentRot.residents?.length || currentRot.cycleOrder?.length || currentRot.freeWeekends?.length)) {
+    if (!existingMonths[currentMonthStr] && (currentRot.residents?.length || currentRot.cycleOrder?.length || currentRot.freeWeekends?.length || currentRot.vacations?.length)) {
       existingMonths[currentMonthStr] = {
         residents: currentRot.residents || [],
         cycleOrder: buildGuardCycleABCD(currentRot.residents || [], settingsMeta, currentRot.cycleOrder || []),
-        freeWeekends: (currentRot.freeWeekends || []).filter(r => !r?.startDate || r.startDate >= minOctoberDate)
+        freeWeekends: (currentRot.freeWeekends || []).filter(r => !r?.startDate || r.startDate >= minOctoberDate),
+        vacations: (currentRot.vacations || []).filter(v => !v?.startDate || v.endDate >= minOctoberDate)
       };
     }
     return existingMonths;
@@ -91,11 +101,18 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
   const [selectedCalDate, setSelectedCalDate] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // Estado para agregar nueva regla de Fin Libre en el mes activo
+  // Estado para agregar nueva regla de Fin Libre (Por default Sábado a Domingo: 'sab-dom')
   const [freeRes, setFreeRes] = useState('');
   const [freeWeekendId, setFreeWeekendId] = useState('');
-  const [freeSpanMode, setFreeSpanMode] = useState('vie-dom'); // 'vie-dom' | 'sab-dom'
+  const [freeSpanMode, setFreeSpanMode] = useState('sab-dom'); // 'sab-dom' (default) | 'vie-dom' (permiso especial)
   const [freeReplacement, setFreeReplacement] = useState('Nadie');
+
+  // Estado para agregar Ausencias (Vacaciones o Congreso) y ajustar el calendario de guardias
+  const [vacType, setVacType] = useState('vacaciones'); // 'vacaciones' | 'congreso'
+  const [vacRes, setVacRes] = useState('');
+  const [vacStart, setVacStart] = useState(`${currentMonthStr}-01`);
+  const [vacEnd, setVacEnd] = useState(`${currentMonthStr}-07`);
+  const [vacAdjustMode, setVacAdjustMode] = useState('__RECORRER_ABCD__'); // '__RECORRER_ABCD__' | 'Nadie' | nombre de residente
 
   // Reglas de bloqueo por mes:
   // - Meses previos a octubre (< minOctoberMonth): siempre en blanco y bloqueados
@@ -109,19 +126,34 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
   // Datos exclusivos del mes seleccionado (si es previo a octubre, siempre vacío)
   const activeMonthObj = useMemo(() => {
     if (isBeforeOctober) {
-      return { residents: [], cycleOrder: [], freeWeekends: [] };
+      return { residents: [], cycleOrder: [], freeWeekends: [], vacations: [] };
     }
-    return monthsData[monthStr] || { residents: [], cycleOrder: [], freeWeekends: [] };
+    return monthsData[monthStr] || { residents: [], cycleOrder: [], freeWeekends: [], vacations: [] };
   }, [monthsData, monthStr, isBeforeOctober]);
 
   const selectedHzh = activeMonthObj.residents || [];
   const cycleOrder = activeMonthObj.cycleOrder || [];
   const freeWeekends = activeMonthObj.freeWeekends || [];
+  const vacations = activeMonthObj.vacations || [];
+
+  // Todas las vacaciones y congresos registrados (incluyendo los que cruzan de un mes a otro)
+  const allVacationsAcrossMonths = useMemo(() => {
+    const list = Object.values(monthsData).flatMap(m => m?.vacations || []);
+    return Array.from(new Map(list.filter(Boolean).map(v => [v.id || `${v.resident}-${v.startDate}`, v])).values());
+  }, [monthsData]);
+
+  // Ausencias que tocan al menos un día del mes actualmente visualizado
+  const monthActiveVacations = useMemo(() => {
+    if (isBeforeOctober) return [];
+    const mStart = `${monthStr}-01`;
+    const mEnd = `${monthStr}-31`;
+    return allVacationsAcrossMonths.filter(v => v.startDate <= mEnd && v.endDate >= mStart);
+  }, [allVacationsAcrossMonths, monthStr, isBeforeOctober]);
 
   const updateActiveMonthData = (updater) => {
     if (!canEditMonth) return;
     setMonthsData(prev => {
-      const current = prev[monthStr] || { residents: [], cycleOrder: [], freeWeekends: [] };
+      const current = prev[monthStr] || { residents: [], cycleOrder: [], freeWeekends: [], vacations: [] };
       const next = typeof updater === 'function' ? updater(current) : { ...current, ...updater };
       return {
         ...prev,
@@ -186,7 +218,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     }));
   };
 
-  // Agregar una regla de Fin Libre para que la persona seleccionada no tenga guardias ese fin de semana
+  // Agregar una regla de Fin Libre (por default Sáb–Dom, con opción a Vie–Dom para permisos especiales)
   const handleAddFreeWeekendRule = () => {
     if (!canEditMonth) return;
     if (!freeRes) return alert('Selecciona el residente que tendrá el Fin Libre.');
@@ -269,26 +301,142 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     return cycleOrder;
   }, [cycleOrder]);
 
+  // Agregar una ausencia (Vacaciones o Congreso) y ajustar automáticamente el calendario de guardias
+  const handleAddVacationRule = () => {
+    if (!canEditMonth) return;
+    const ausenciaLabel = vacType === 'congreso' ? 'el congreso' : 'las vacaciones';
+    if (!vacRes) return alert(`Selecciona el residente que tendrá ${ausenciaLabel}.`);
+    if (!vacStart || !vacEnd) return alert('Selecciona la fecha de inicio y fin.');
+    if (vacEnd < vacStart) return alert('La fecha final no puede ser anterior a la fecha inicial.');
+
+    const label = formatShortDateRange(vacStart, vacEnd);
+    const replacementValue = vacAdjustMode === '__RECORRER_ABCD__' ? 'Nadie' : (vacAdjustMode || 'Nadie');
+
+    const newVac = {
+      id: `abs-${vacType}-${vacRes}-${vacStart}-${Date.now()}`,
+      type: vacType, // 'vacaciones' | 'congreso'
+      resident: vacRes,
+      startDate: vacStart,
+      endDate: vacEnd,
+      adjustMode: vacAdjustMode,
+      replacement: replacementValue,
+      label
+    };
+
+    updateActiveMonthData(cur => ({
+      ...cur,
+      vacations: [...(cur.vacations || []), newVac]
+    }));
+
+    // Ajustar el calendario de guardias en las fechas de la ausencia (del mes actual o futuro)
+    setSchedule(prev => {
+      const nextSched = { ...prev };
+
+      if (vacAdjustMode === '__RECORRER_ABCD__') {
+        // Obtener el orden base de residentes activos en este mes (del ciclo ABCD o de los asignados en el mes)
+        let basePool = effectiveCycle.filter(r => r && r !== 'Nadie');
+        if (basePool.length === 0) {
+          const seenInMonth = [];
+          daysInMonth.forEach(d => {
+            const g = nextSched[d.dateStr]?.guardia;
+            if (g && g !== 'Nadie' && !seenInMonth.includes(g)) {
+              seenInMonth.push(g);
+            }
+          });
+          basePool = seenInMonth;
+        }
+
+        // Quitar al residente ausente
+        const activeDuringVac = basePool.filter(r => normalizeText(r) !== normalizeText(vacRes));
+        // Respetar frecuencia máxima ABCD (mínimo 4 posiciones; si quedan < 4 residentes, completar con 'Nadie')
+        const vacCycle = [...activeDuringVac];
+        while (vacCycle.length < 4) {
+          vacCycle.push('Nadie');
+        }
+
+        // Ajustar los días dentro del rango en este mes
+        let rotIdx = 0;
+        daysInMonth.forEach(day => {
+          if (day.dateStr >= vacStart && day.dateStr <= vacEnd && day.dateStr >= minOctoberDate) {
+            const hadAnyGuardInMonth = daysInMonth.some(d => Boolean(nextSched[d.dateStr]?.guardia));
+            if (hadAnyGuardInMonth) {
+              const otherVacs = getVacationRulesForDate(day.dateStr, [...allVacationsAcrossMonths, newVac]);
+              const vacSet = new Set(otherVacs.map(v => normalizeText(v.resident)));
+              const dayPool = vacCycle.map(r => (r !== 'Nadie' && vacSet.has(normalizeText(r)) ? 'Nadie' : r));
+
+              let assigned = dayPool[rotIdx % dayPool.length] || 'Nadie';
+              rotIdx++;
+
+              const activeFree = getFreeWeekendRulesForDate(day.dateStr, freeWeekends);
+              const matchingFree = activeFree.find(r => normalizeText(r.resident) === normalizeText(assigned));
+              if (matchingFree) {
+                assigned = matchingFree.replacement || 'Nadie';
+              }
+              nextSched[day.dateStr] = { guardia: assigned };
+            }
+          }
+        });
+      } else {
+        // Suplencia directa (Nadie o residente específico) en los días donde le tocaba guardia al ausente
+        Object.keys(nextSched).forEach(dStr => {
+          if (dStr >= vacStart && dStr <= vacEnd && dStr >= minOctoberDate) {
+            if (normalizeText(nextSched[dStr]?.guardia) === normalizeText(vacRes)) {
+              nextSched[dStr] = { guardia: replacementValue };
+            }
+          }
+        });
+      }
+
+      return nextSched;
+    });
+
+    setVacRes('');
+  };
+
+  const handleRemoveVacationRule = (vacId) => {
+    if (!canEditMonth) return;
+    setMonthsData(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(mKey => {
+        if (next[mKey]?.vacations) {
+          next[mKey] = {
+            ...next[mKey],
+            vacations: next[mKey].vacations.filter(v => v.id !== vacId)
+          };
+        }
+      });
+      return next;
+    });
+  };
+
   // Verifica si el mes seleccionado ya tiene guardias asignadas en schedule
   const hasAssignedGuardsInMonth = useMemo(() => {
     if (isBeforeOctober) return false;
     return daysInMonth.some(d => Boolean(schedule[d.dateStr]?.guardia));
   }, [daysInMonth, schedule, isBeforeOctober]);
 
-  // Calcula la guardia de una fecha leyendo ÚNICAMENTE lo guardado/asignado en schedule
+  // Calcula la guardia de una fecha leyendo ÚNICAMENTE lo guardado/asignado en schedule y respetando Fin Libre y Ausencias
   const getGuardForDay = (dateStr) => {
     if (!dateStr || dateStr < minOctoberDate) return '';
     const dMonth = dateStr.slice(0, 7);
     const rulesForThatMonth = monthsData[dMonth]?.freeWeekends || (dMonth === currentMonthStr ? freeWeekends : []);
     const activeRules = getFreeWeekendRulesForDate(dateStr, rulesForThatMonth);
+    const activeVacs = getVacationRulesForDate(dateStr, allVacationsAcrossMonths);
     const freeNormSet = new Set(activeRules.map(r => normalizeText(r.resident)));
+    const vacNormSet = new Set(activeVacs.map(r => normalizeText(r.resident)));
 
     const candidate = schedule[dateStr]?.guardia || '';
     if (!candidate) return '';
 
-    if (candidate !== 'Nadie' && freeNormSet.has(normalizeText(candidate))) {
-      const matchingRule = activeRules.find(r => normalizeText(r.resident) === normalizeText(candidate));
-      return matchingRule?.replacement || 'Nadie';
+    if (candidate !== 'Nadie') {
+      if (vacNormSet.has(normalizeText(candidate))) {
+        const matchingVac = activeVacs.find(v => normalizeText(v.resident) === normalizeText(candidate));
+        return matchingVac?.replacement || 'Nadie';
+      }
+      if (freeNormSet.has(normalizeText(candidate))) {
+        const matchingRule = activeRules.find(r => normalizeText(r.resident) === normalizeText(candidate));
+        return matchingRule?.replacement || 'Nadie';
+      }
     }
 
     return candidate;
@@ -314,9 +462,9 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
 
     const numRows = Math.ceil(calendarCells.length / 7) || 5;
     const width = 1400;
-    const headerH = 140;
+    const headerH = 148;
     const dowH = 44;
-    const cellH = 145;
+    const cellH = 148;
     const footerH = 60;
     const height = headerH + dowH + numRows * cellH + footerH;
 
@@ -336,23 +484,30 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
 
     ctx.fillStyle = '#F97316';
     ctx.font = '900 30px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('UroTec', 36, 52);
+    ctx.fillText('UroTec', 36, 48);
 
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '800 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(`— CALENDARIO DE GUARDIAS: ${monthTitle}`, 152, 52);
+    ctx.fillText(`— CALENDARIO DE GUARDIAS: ${monthTitle}`, 152, 48);
 
     ctx.fillStyle = '#CBD5E1';
-    ctx.font = '600 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = '600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     const hzhText = selectedHzh.length > 0 ? `📍 Rotación HZH: ${selectedHzh.join(', ')}` : '📍 Rotación HZH: —';
-    ctx.fillText(hzhText, 36, 90);
+    ctx.fillText(hzhText, 36, 84);
 
     const freeText = freeWeekends.length > 0
-      ? `🏖️ Fines Libres: ${freeWeekends.map(r => `${r.resident} (${r.label})`).join('  •  ')}`
+      ? `🏖️ Fines Libres: ${freeWeekends.map(r => `${r.resident} (${r.label})`).join(' • ')}`
       : '🛡️ Guardia del día   |   💤 POS: Guardia del día anterior';
     ctx.fillStyle = '#34D399';
-    ctx.font = '600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(freeText.slice(0, 125), 36, 118);
+    ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(freeText.slice(0, 130), 36, 110);
+
+    if (monthActiveVacations.length > 0) {
+      const absText = monthActiveVacations.map(v => `${v.type === 'congreso' ? '🎓 Congreso' : '✈️ Vacas'}: ${v.resident} (${v.label})`).join(' • ');
+      ctx.fillStyle = '#38BDF8';
+      ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(absText.slice(0, 130), 36, 132);
+    }
 
     // Encabezado días de la semana
     const dows = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
@@ -394,14 +549,18 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
         ctx.font = '900 19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         ctx.fillText(String(cell.dayNum), x + 12, yPos + 26);
 
-        // Regla Fin Libre
+        // Regla Fin Libre o Ausencia (Vacaciones / Congreso)
         const freeRules = isBeforeOctober ? [] : getFreeWeekendRulesForDate(cell.dateStr, freeWeekends);
-        if (freeRules.length > 0) {
-          ctx.fillStyle = '#D1FAE5';
-          ctx.fillRect(x + 48, yPos + 8, colW - 56, 22);
-          ctx.fillStyle = '#065F46';
+        const vacRules = isBeforeOctober ? [] : getVacationRulesForDate(cell.dateStr, allVacationsAcrossMonths);
+        if (freeRules.length > 0 || vacRules.length > 0) {
+          ctx.fillStyle = vacRules.length > 0 ? '#E0F2FE' : '#D1FAE5';
+          ctx.fillRect(x + 44, yPos + 8, colW - 52, 22);
+          ctx.fillStyle = vacRules.length > 0 ? '#0369A1' : '#065F46';
           ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-          ctx.fillText(`🏖️ ${freeRules.map(f => formatMobileGuardName(f.resident)).join(', ')}`.slice(0, 18), x + 53, yPos + 23);
+          const badgeTxt = vacRules.length > 0
+            ? `${vacRules[0].type === 'congreso' ? '🎓' : '✈️'} ${vacRules.map(v => formatMobileGuardName(v.resident)).join(',')}`
+            : `🏖️ ${freeRules.map(f => formatMobileGuardName(f.resident)).join(',')}`;
+          ctx.fillText(badgeTxt.slice(0, 18), x + 49, yPos + 23);
         }
 
         const dGuard = getGuardForDay(cell.dateStr);
@@ -451,7 +610,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     document.body.removeChild(link);
   };
 
-  // Autollenar ÚNICAMENTE el mes seleccionado según su propio ciclo ABCD y respetando sus reglas de Fin Libre
+  // Autollenar ÚNICAMENTE el mes seleccionado según su propio ciclo ABCD y respetando tanto Fines Libres como Ausencias
   const autoFillMonthGuards = () => {
     if (!canEditMonth) return;
     if (effectiveCycle.length === 0 || effectiveCycle.every(x => x === 'Nadie')) {
@@ -465,15 +624,38 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
       if (!ok) return;
     }
 
-    const cycleToUse = effectiveCycle.length >= 4 ? effectiveCycle : ['Nadie', 'Nadie', 'Nadie', 'Nadie'];
+    const baseCycle = effectiveCycle.length >= 4 ? effectiveCycle : ['Nadie', 'Nadie', 'Nadie', 'Nadie'];
     const nextSchedule = { ...schedule };
-    const startObj = new Date(`${monthStr}-01T12:00:00`);
+    let normalIdx = 0;
+    let vacIdx = 0;
 
     daysInMonth.forEach((day) => {
-      const curObj = new Date(day.dateStr + 'T12:00:00');
-      const diff = Math.round((curObj - startObj) / (1000 * 60 * 60 * 24));
-      const cycleIdx = ((diff % cycleToUse.length) + cycleToUse.length) % cycleToUse.length;
-      let guardiaRes = cycleToUse[cycleIdx] || 'Nadie';
+      const activeVacs = getVacationRulesForDate(day.dateStr, allVacationsAcrossMonths);
+      let guardiaRes = 'Nadie';
+
+      if (activeVacs.length > 0) {
+        const vacNormSet = new Set(activeVacs.map(v => normalizeText(v.resident)));
+        const hasRecorrer = activeVacs.some(v => v.adjustMode === '__RECORRER_ABCD__' || !v.adjustMode);
+
+        if (hasRecorrer) {
+          // Quitar del ciclo a quienes están ausentes hoy y mantener frecuencia máxima ABCD (mínimo 4 slots)
+          const remaining = baseCycle.filter(r => r !== 'Nadie' && !vacNormSet.has(normalizeText(r)));
+          const adjustedCycle = [...remaining];
+          while (adjustedCycle.length < 4) {
+            adjustedCycle.push('Nadie');
+          }
+          guardiaRes = adjustedCycle[vacIdx % adjustedCycle.length] || 'Nadie';
+          vacIdx++;
+        } else {
+          const candidate = baseCycle[normalIdx % baseCycle.length] || 'Nadie';
+          normalIdx++;
+          const matchingVac = activeVacs.find(v => normalizeText(v.resident) === normalizeText(candidate));
+          guardiaRes = matchingVac ? (matchingVac.replacement || 'Nadie') : candidate;
+        }
+      } else {
+        guardiaRes = baseCycle[normalIdx % baseCycle.length] || 'Nadie';
+        normalIdx++;
+      }
 
       const activeRules = getFreeWeekendRulesForDate(day.dateStr, freeWeekends);
       const matchingRule = activeRules.find(r => normalizeText(r.resident) === normalizeText(guardiaRes));
@@ -508,6 +690,14 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
     if (dateStr < minOctoberDate || dateStr.slice(0, 7) < currentMonthStr) return;
 
     if (value && value !== 'Nadie') {
+      const activeVacs = getVacationRulesForDate(dateStr, allVacationsAcrossMonths);
+      const matchingVac = activeVacs.find(v => normalizeText(v.resident) === normalizeText(value));
+      if (matchingVac) {
+        const ausenciaLabel = matchingVac.type === 'congreso' ? 'un congreso' : 'vacaciones';
+        alert(`${value} tiene registrado ${ausenciaLabel} en esta fecha (${dateStr}).`);
+        return;
+      }
+
       const activeRules = getFreeWeekendRulesForDate(dateStr, freeWeekends);
       const hasFreeRule = activeRules.some(r => normalizeText(r.resident) === normalizeText(value));
       if (hasFreeRule) {
@@ -540,7 +730,8 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
       const curMonthCfg = monthsData[currentMonthStr] || {
         residents: currentRot.residents || [],
         cycleOrder: currentRot.cycleOrder || [],
-        freeWeekends: currentRot.freeWeekends || []
+        freeWeekends: currentRot.freeWeekends || [],
+        vacations: currentRot.vacations || []
       };
 
       const payload = {
@@ -551,6 +742,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
           cycleStartDate: `${currentMonthStr}-01`,
           schedule: cleanSchedule,
           freeWeekends: curMonthCfg.freeWeekends || [],
+          vacations: curMonthCfg.vacations || [],
           months: monthsData,
           updatedAt: new Date().toISOString()
         }
@@ -575,7 +767,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
               <span>Calendario de Guardias</span>
             </h3>
             <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
-              Rol mensual ABCD, Fines Libres y Rotación HZH
+              Rol ABCD, Fines Libres, Vacaciones / Congresos y Rotación HZH
             </p>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -601,7 +793,10 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
               type="month"
               value={monthStr}
               onChange={e => {
-                setMonthStr(e.target.value);
+                const nextM = e.target.value;
+                setMonthStr(nextM);
+                setVacStart(`${nextM}-01`);
+                setVacEnd(`${nextM}-07`);
                 setSelectedCalDate(null);
               }}
               className="px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
@@ -637,7 +832,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
               onClick={() => setActiveSection('guards')}
               className={`px-2 py-1 rounded-md transition ${activeSection === 'guards' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-gray-600 dark:text-slate-300'}`}
             >
-              🔄 ABCD / Libre
+              🔄 ABCD / Libre / Ausencias
             </button>
             <button
               type="button"
@@ -662,6 +857,8 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                   <span>🛡️ Guardia</span>
                   <span>💤 POS</span>
                   <span className="text-emerald-600 dark:text-emerald-400">🏖️ Libre</span>
+                  <span className="text-sky-600 dark:text-sky-400">✈️ Vacas</span>
+                  <span className="text-indigo-600 dark:text-indigo-400">🎓 Congreso</span>
                   {canEditMonth && hasAssignedGuardsInMonth && isFutureMonth && (
                     <button
                       type="button"
@@ -701,13 +898,19 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                 const currentG = getGuardForDay(selectedCalDate);
                 const currentP = getAutoPosguardiaForDay(selectedCalDate);
                 const activeFree = getFreeWeekendRulesForDate(selectedCalDate, freeWeekends);
+                const activeVacs = getVacationRulesForDate(selectedCalDate, allVacationsAcrossMonths);
                 return (
                   <div className="bg-blue-50/90 dark:bg-blue-950/50 border border-blue-300 dark:border-blue-800 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2 animate-in fade-in">
-                    <div className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                    <div className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5 flex-wrap">
                       <span>📅 {selectedCalDate}</span>
                       {activeFree.length > 0 && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-black">
                           🏖️ {activeFree.map(r => r.resident).join(', ')}
+                        </span>
+                      )}
+                      {activeVacs.length > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 font-black">
+                          {activeVacs.map(v => `${v.type === 'congreso' ? '🎓 Congreso' : '✈️ Vacas'}: ${v.resident}`).join(', ')}
                         </span>
                       )}
                     </div>
@@ -724,14 +927,30 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                           <optgroup label="📍 Rotando en HZH">
                             {selectedHzh.map(r => {
                               const isFree = activeFree.some(rule => normalizeText(rule.resident) === normalizeText(r));
-                              return <option key={r} value={r} disabled={isFree}>{r}{isFree ? ' (🏖️ Libre)' : ''}</option>;
+                              const vacObj = activeVacs.find(v => normalizeText(v.resident) === normalizeText(r));
+                              const isVac = Boolean(vacObj);
+                              const vacTag = isVac ? (vacObj.type === 'congreso' ? ' (🎓 Congreso)' : ' (✈️ Vacas)') : '';
+                              const disabled = isFree || isVac;
+                              return (
+                                <option key={r} value={r} disabled={disabled}>
+                                  {r}{vacTag || (isFree ? ' (🏖️ Libre)' : '')}
+                                </option>
+                              );
                             })}
                           </optgroup>
                         )}
                         <optgroup label="Todos">
                           {allOrdered.map(r => {
                             const isFree = activeFree.some(rule => normalizeText(rule.resident) === normalizeText(r));
-                            return <option key={r} value={r} disabled={isFree}>{r}{isFree ? ' (🏖️ Libre)' : ''}</option>;
+                            const vacObj = activeVacs.find(v => normalizeText(v.resident) === normalizeText(r));
+                            const isVac = Boolean(vacObj);
+                            const vacTag = isVac ? (vacObj.type === 'congreso' ? ' (🎓 Congreso)' : ' (✈️ Vacas)') : '';
+                            const disabled = isFree || isVac;
+                            return (
+                              <option key={r} value={r} disabled={disabled}>
+                                {r}{vacTag || (isFree ? ' (🏖️ Libre)' : '')}
+                              </option>
+                            );
                           })}
                         </optgroup>
                       </select>
@@ -770,6 +989,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                       const dGuard = getGuardForDay(cell.dateStr);
                       const dPos = getAutoPosguardiaForDay(cell.dateStr);
                       const freeRules = isBeforeOctober ? [] : getFreeWeekendRulesForDate(cell.dateStr, freeWeekends);
+                      const vacRules = isBeforeOctober ? [] : getVacationRulesForDate(cell.dateStr, allVacationsAcrossMonths);
                       const gProf = dGuard ? getMemberProfile(dGuard, settingsMeta) : null;
                       const isToday = cell.dateStr === today;
                       const isSelected = cell.dateStr === selectedCalDate;
@@ -794,19 +1014,30 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                               : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700/80'
                           }`}
                         >
-                          {/* Fila superior: Número de día + indicador compacto de Fin Libre */}
+                          {/* Fila superior: Número de día + indicador compacto de Fin Libre o Vacas/Congreso */}
                           <div className="flex items-center justify-between px-0.5">
                             <span className={`text-[10px] sm:text-[11px] font-black leading-none ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
                               {cell.dayNum}
                             </span>
-                            {freeRules.length > 0 && (
+                            {vacRules.length > 0 ? (() => {
+                              const v = vacRules[0];
+                              const icon = v.type === 'congreso' ? '🎓' : '✈️';
+                              return (
+                                <span
+                                  className="text-[8px] sm:text-[9px] px-0.5 rounded bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 font-bold truncate max-w-[34px] sm:max-w-[54px]"
+                                  title={`${v.type === 'congreso' ? 'Congreso' : 'Vacaciones'}: ${vacRules.map(x => x.resident).join(', ')}`}
+                                >
+                                  {icon}{formatMobileGuardName(v.resident).slice(0, 3)}
+                                </span>
+                              );
+                            })() : freeRules.length > 0 ? (
                               <span
                                 className="text-[8px] sm:text-[9px] px-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-bold truncate max-w-[34px] sm:max-w-[54px]"
                                 title={`Fin Libre: ${freeRules.map(r => r.resident).join(', ')}`}
                               >
                                 🏖️{formatMobileGuardName(freeRules[0].resident).slice(0, 3)}
                               </span>
-                            )}
+                            ) : null}
                           </div>
 
                           {/* Centro: Nombre de Guardia grande y claro en móvil */}
@@ -849,6 +1080,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                     const dGuard = getGuardForDay(day.dateStr);
                     const dPos = getAutoPosguardiaForDay(day.dateStr);
                     const freeRules = isBeforeOctober ? [] : getFreeWeekendRulesForDate(day.dateStr, freeWeekends);
+                    const vacRules = isBeforeOctober ? [] : getVacationRulesForDate(day.dateStr, allVacationsAcrossMonths);
                     const gProf = dGuard ? getMemberProfile(dGuard, settingsMeta) : null;
                     const pProf = dPos ? getMemberProfile(dPos, settingsMeta) : null;
                     const isWeekend = day.dow === 0 || day.dow === 6;
@@ -876,6 +1108,11 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                             {freeRules.length > 0 && (
                               <div className="text-[9px] font-black text-emerald-600 dark:text-emerald-400">
                                 🏖️ {freeRules.map(r => formatMobileGuardName(r.resident)).join(', ')}
+                              </div>
+                            )}
+                            {vacRules.length > 0 && (
+                              <div className="text-[9px] font-black text-sky-600 dark:text-sky-400">
+                                {vacRules.map(v => `${v.type === 'congreso' ? '🎓' : '✈️'} ${formatMobileGuardName(v.resident)}`).join(', ')}
                               </div>
                             )}
                           </div>
@@ -911,44 +1148,82 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                 </div>
               )}
 
-              {/* Resumen de Fines Libres del Mes debajo del Calendario */}
-              {freeWeekends.length > 0 && (
-                <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-2.5 space-y-1.5">
-                  <div className="text-[11px] font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
-                    <Palmtree size={13} /> Fines Libres Programados ({monthStr})
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {freeWeekends.map(rule => {
-                      const prof = getMemberProfile(rule.resident, settingsMeta);
-                      return (
-                        <span
-                          key={rule.id}
-                          className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-200"
-                        >
-                          <span className={`w-2 h-2 rounded-full ${prof.colorObj.dot}`} />
-                          <span>{rule.resident}</span>
-                          <span className="text-emerald-600 dark:text-emerald-400">({rule.label})</span>
-                          {canEditMonth && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveFreeWeekendRule(rule.id)}
-                              className="text-red-400 hover:text-red-600 ml-0.5"
-                              title="Quitar Fin Libre"
+              {/* Resumen de Fines Libres y Ausencias (Vacaciones / Congreso) del Mes debajo del Calendario */}
+              {(freeWeekends.length > 0 || monthActiveVacations.length > 0) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {freeWeekends.length > 0 && (
+                    <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-2.5 space-y-1.5">
+                      <div className="text-[11px] font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                        <Palmtree size={13} /> Fines Libres ({monthStr})
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {freeWeekends.map(rule => {
+                          const prof = getMemberProfile(rule.resident, settingsMeta);
+                          return (
+                            <span
+                              key={rule.id}
+                              className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-200"
                             >
-                              <X size={12} />
-                            </button>
-                          )}
-                        </span>
-                      );
-                    })}
-                  </div>
+                              <span className={`w-2 h-2 rounded-full ${prof.colorObj.dot}`} />
+                              <span>{rule.resident}</span>
+                              <span className="text-emerald-600 dark:text-emerald-400">({rule.label})</span>
+                              {canEditMonth && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveFreeWeekendRule(rule.id)}
+                                  className="text-red-400 hover:text-red-600 ml-0.5"
+                                  title="Quitar Fin Libre"
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {monthActiveVacations.length > 0 && (
+                    <div className="bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/60 rounded-xl p-2.5 space-y-1.5">
+                      <div className="text-[11px] font-black text-sky-800 dark:text-sky-300 flex items-center gap-1">
+                        <Plane size={13} /> Vacaciones y Congresos ({monthStr})
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {monthActiveVacations.map(vac => {
+                          const prof = getMemberProfile(vac.resident, settingsMeta);
+                          const isCongreso = vac.type === 'congreso';
+                          return (
+                            <span
+                              key={vac.id}
+                              className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-800 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-200"
+                            >
+                              <span className={`w-2 h-2 rounded-full ${prof.colorObj.dot}`} />
+                              <span>{isCongreso ? '🎓' : '✈️'} {vac.resident}</span>
+                              <span className="text-sky-600 dark:text-sky-400">({vac.label})</span>
+                              {canEditMonth && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveVacationRule(vac.id)}
+                                  className="text-red-400 hover:text-red-600 ml-0.5"
+                                  title="Quitar ausencia"
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
           {/* =================================================================
-              SECCIÓN 2: CONFIGURACIÓN DEL ROL ABCD + REGLAS DE FIN LIBRE
+              SECCIÓN 2: CONFIGURACIÓN DEL ROL ABCD + FIN LIBRE + AUSENCIAS
              ================================================================= */}
           {activeSection === 'guards' && (
             <div className="space-y-3">
@@ -959,15 +1234,15 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                 </div>
               )}
 
-              {/* Regla de Fin Libre */}
+              {/* 1. Regla de Fin Libre (Por default Sáb–Dom, opción Vie–Dom para permiso especial) */}
               <div className="bg-emerald-50/60 dark:bg-emerald-950/25 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/60 space-y-2.5">
                 <div>
                   <span className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
                     <Palmtree size={15} className="text-emerald-600 dark:text-emerald-400" />
-                    Regla de Fin Libre en {monthStr} (Sin Guardias en Fin de Semana)
+                    Regla de Fin Libre en {monthStr} (Por default Sáb–Dom)
                   </span>
                   <p className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
-                    La persona seleccionada quedará exenta de guardias durante todo ese fin de semana de {monthStr}.
+                    Por defecto abarca Sábado a Domingo (o Viernes a Domingo en permisos especiales).
                   </p>
                 </div>
 
@@ -1014,10 +1289,10 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                           value={freeSpanMode}
                           onChange={e => setFreeSpanMode(e.target.value)}
                           className="w-1/2 p-1.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-800 dark:text-white"
-                          title="Días que abarca el Fin Libre"
+                          title="Por default Sáb–Dom; Vie–Dom para permisos especiales"
                         >
-                          <option value="vie-dom">Vie–Dom</option>
                           <option value="sab-dom">Sáb–Dom</option>
+                          <option value="vie-dom">Vie–Dom (Permiso)</option>
                         </select>
                         <select
                           value={freeReplacement}
@@ -1074,7 +1349,137 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                 )}
               </div>
 
-              {/* Generador automático por ciclo ABCD */}
+              {/* 2. Registro de Ausencias: Vacaciones o Congreso (ajusta el calendario de guardias en esas fechas) */}
+              <div className="bg-sky-50/60 dark:bg-sky-950/25 p-3 rounded-xl border border-sky-200 dark:border-sky-800/60 space-y-2.5">
+                <div>
+                  <span className="text-xs font-extrabold text-sky-900 dark:text-sky-300 flex items-center gap-1.5">
+                    <Plane size={15} className="text-sky-600 dark:text-sky-400" />
+                    Ausencias: Vacaciones o Congreso (Ajusta el Calendario de Guardias)
+                  </span>
+                  <p className="text-[10px] text-sky-700/80 dark:text-sky-300/80">
+                    Registra salidas por vacaciones o asistencia a congreso y las fechas para ajustar automáticamente las guardias.
+                  </p>
+                </div>
+
+                {canEditMonth && (
+                  <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-0.5">Tipo:</label>
+                      <select
+                        value={vacType}
+                        onChange={e => setVacType(e.target.value)}
+                        className="w-full p-1.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-white"
+                      >
+                        <option value="vacaciones">✈️ Vacaciones</option>
+                        <option value="congreso">🎓 Congreso</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-0.5">Residente:</label>
+                      <select
+                        value={vacRes}
+                        onChange={e => setVacRes(e.target.value)}
+                        className="w-full p-1.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-white"
+                      >
+                        <option value="">Elegir...</option>
+                        {selectedHzh.length > 0 && (
+                          <optgroup label="📍 Rotando en HZH">
+                            {selectedHzh.map(r => <option key={r} value={r}>{r}</option>)}
+                          </optgroup>
+                        )}
+                        <optgroup label="Todos">
+                          {allOrdered.map(r => <option key={r} value={r}>{r}</option>)}
+                        </optgroup>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-0.5">Desde:</label>
+                      <input
+                        type="date"
+                        value={vacStart}
+                        onChange={e => {
+                          setVacStart(e.target.value);
+                          if (vacEnd < e.target.value) setVacEnd(e.target.value);
+                        }}
+                        className="w-full p-1.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-0.5">Hasta:</label>
+                      <input
+                        type="date"
+                        value={vacEnd}
+                        min={vacStart}
+                        onChange={e => setVacEnd(e.target.value)}
+                        className="w-full p-1.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-0.5">Ajuste de Guardias:</label>
+                      <select
+                        value={vacAdjustMode}
+                        onChange={e => setVacAdjustMode(e.target.value)}
+                        className="w-full p-1.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-800 dark:text-white"
+                      >
+                        <option value="__RECORRER_ABCD__">🔄 Recorrer rol (máx. ABCD)</option>
+                        <option value="Nadie">🚫 Dejar sus días en Nadie</option>
+                        <optgroup label="👤 Cubrir sus guardias con:">
+                          {allOrdered.map(r => <option key={r} value={r}>Cubre: {r}</option>)}
+                        </optgroup>
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddVacationRule}
+                      className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition flex items-center justify-center gap-1"
+                    >
+                      <Plus size={14} /> {vacType === 'congreso' ? 'Agregar Congreso' : 'Agregar Vacas'}
+                    </button>
+                  </div>
+                )}
+
+                {monthActiveVacations.length > 0 ? (
+                  <div className="space-y-1 pt-1">
+                    {monthActiveVacations.map(vac => {
+                      const prof = getMemberProfile(vac.resident, settingsMeta);
+                      const isCongreso = vac.type === 'congreso';
+                      return (
+                        <div key={vac.id} className="flex items-center justify-between bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-sky-200 dark:border-sky-800/70 text-xs">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`w-2.5 h-2.5 rounded-full ${prof.colorObj.dot}`} />
+                            <span className="font-bold text-slate-800 dark:text-white">{vac.resident}</span>
+                            <span className="text-[11px] font-bold text-sky-600 dark:text-sky-400">
+                              {isCongreso ? '🎓 Congreso' : '✈️ Vacaciones'}: {vac.label}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              ({vac.adjustMode === '__RECORRER_ABCD__' ? 'Rol ajustado ABCD' : `Cubre: ${vac.replacement || 'Nadie'}`})
+                            </span>
+                          </div>
+                          {canEditMonth && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveVacationRule(vac.id)}
+                              className="text-red-400 hover:text-red-600 p-1"
+                              title="Eliminar ausencia"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-gray-400 italic">No hay ausencias (vacaciones o congresos) registradas en {monthStr}.</p>
+                )}
+              </div>
+
+              {/* 3. Generador automático por ciclo ABCD */}
               {canEditMonth && (
                 <div className="bg-slate-50 dark:bg-slate-700/40 p-3 rounded-xl border border-gray-200 dark:border-slate-600 space-y-2">
                   <div className="flex flex-wrap justify-between items-center gap-1.5">
@@ -1084,7 +1489,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
                         Ciclo ABCD para {monthStr}
                       </span>
                       <p className="text-[10px] text-gray-500 dark:text-slate-400">
-                        Cambiar integrantes aquí NO mueve otros meses ni modifica días hasta que pulses "Autollenar {monthStr}".
+                        Respeta automáticamente Fines Libres, Vacaciones y Congresos registrados.
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">

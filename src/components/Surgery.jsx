@@ -616,6 +616,24 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                       </span>
                     </>
                   )}
+
+                  {selectedDayGuard.activeAbsences?.length > 0 ? (
+                    selectedDayGuard.activeAbsences.map(abs => (
+                      <React.Fragment key={abs.resident}>
+                        <span className="text-gray-300 dark:text-slate-600">|</span>
+                        <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">
+                          {abs.type === 'congreso' ? '🎓' : '✈️'} {abs.resident}
+                        </span>
+                      </React.Fragment>
+                    ))
+                  ) : selectedDayGuard.vacationResidents?.length > 0 ? (
+                    <>
+                      <span className="text-gray-300 dark:text-slate-600">|</span>
+                      <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">
+                        ✈️ {selectedDayGuard.vacationResidents.join(', ')}
+                      </span>
+                    </>
+                  ) : null}
                 </div>
 
                 {onOpenRotation && (
