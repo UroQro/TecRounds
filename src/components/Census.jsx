@@ -18,6 +18,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
 
   // Buscador y filtros
   const [searchTerm, setSearchTerm] = useState('');
+  const [showSearchInput, setShowSearchInput] = useState(false);
   const [filterDoc, setFilterDoc] = useState('');
   const [filterRes, setFilterRes] = useState('');
   const [filterHosp, setFilterHosp] = useState('');
@@ -25,6 +26,45 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
   const [quickFilter, setQuickFilter] = useState('all'); // 'all' | 'handover' | 'pending_visit' | 'has_pending' | 'pre_discharge' | 'ready_discharge'
   const [sortBy, setSortBy] = useState('bed'); // 'bed' | 'los' | 'hospital' | 'name'
   const [showFilters, setShowFilters] = useState(false);
+  const [hasAutoSelectedResident, setHasAutoSelectedResident] = useState(false);
+
+  // Perfil del usuario activo y detección de si es residente
+  const currentUserProfile = useMemo(
+    () => getMemberProfile(user?.email || user?.displayName, settingsMeta),
+    [user, settingsMeta]
+  );
+
+  const matchedUserResident = useMemo(() => {
+    if (!user) return null;
+    const candidateNames = [
+      currentUserProfile?.name,
+      user.displayName,
+      user.email ? user.email.split('@')[0] : ''
+    ].filter(Boolean);
+
+    for (const cand of candidateNames) {
+      const normCand = normalizeText(cand);
+      const match = orderedResidents.find(r => normalizeText(r) === normCand || normCand.includes(normalizeText(r)) || normalizeText(r).includes(normCand));
+      if (match) return match;
+    }
+    return null;
+  }, [user, currentUserProfile, orderedResidents]);
+
+  const userPatientsCount = useMemo(() => {
+    if (!matchedUserResident) return 0;
+    const normUser = normalizeText(matchedUserResident);
+    return patients.filter(p => normalizeText(p.resident) === normUser).length;
+  }, [patients, matchedUserResident]);
+
+  // Auto-seleccionar por default al residente activo si tiene pacientes asignados
+  useEffect(() => {
+    if (!hasAutoSelectedResident && patients.length > 0 && matchedUserResident) {
+      if (userPatientsCount > 0) {
+        setFilterRes(matchedUserResident);
+      }
+      setHasAutoSelectedResident(true);
+    }
+  }, [patients, matchedUserResident, userPatientsCount, hasAutoSelectedResident]);
 
   useEffect(() => {
     const q = query(collection(db, "patients"), orderBy("bed"));
@@ -158,10 +198,11 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
   }, [patients, searchTerm, filterDoc, filterRes, filterHosp, filterType, quickFilter, sortBy, dynamicDoctors]);
 
   const hasActiveFilters = Boolean(searchTerm || filterDoc || filterRes || filterHosp || filterType || quickFilter !== 'all' || sortBy !== 'bed');
-  const activeDropdownFiltersCount = [filterDoc, filterRes, filterHosp, filterType, sortBy !== 'bed' ? sortBy : ''].filter(Boolean).length;
+  const activeDropdownFiltersCount = [filterDoc, filterHosp, filterType, sortBy !== 'bed' ? sortBy : ''].filter(Boolean).length;
 
   const clearAllFilters = () => {
     setSearchTerm('');
+    setShowSearchInput(false);
     setFilterDoc('');
     setFilterRes('');
     setFilterHosp('');
@@ -245,16 +286,82 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
     <div className="pb-24">
       {/* Barra superior ultra-compacta para móvil */}
       <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl shadow-sm border border-blue-100 dark:border-slate-700 mb-3 transition-colors space-y-2">
-         {/* Fila 1: Buscador + Botón Filtros */}
+         {/* Fila 1: Filtro de Residente (Principal) + Toggle Buscador + Filtros Avanzados + Reset */}
          <div className="flex items-center gap-1.5">
              <div className="relative flex-1">
-                 <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                 <select
+                     value={filterRes}
+                     onChange={e => setFilterRes(e.target.value)}
+                     className="w-full py-1.5 pl-2.5 pr-6 border border-slate-200 dark:border-slate-600 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 truncate"
+                 >
+                     <option value="">👥 Todos los residentes ({stats.total})</option>
+                     {hzhResidents.length > 0 ? (
+                         <>
+                             <optgroup label="📍 Zambrano (HZH)">
+                                 {hzhResidents.map(r => (
+                                     <option key={r} value={r}>
+                                         {r === matchedUserResident ? `👤 ${r} (Tú)` : r}
+                                     </option>
+                                 ))}
+                             </optgroup>
+                             {otherResidents.length > 0 && (
+                                 <optgroup label="Otros Residentes">
+                                     {otherResidents.map(r => (
+                                         <option key={r} value={r}>
+                                             {r === matchedUserResident ? `👤 ${r} (Tú)` : r}
+                                         </option>
+                                     ))}
+                                 </optgroup>
+                             )}
+                         </>
+                     ) : (
+                         orderedResidents.map(r => (
+                             <option key={r} value={r}>
+                                 {r === matchedUserResident ? `👤 ${r} (Tú)` : r}
+                             </option>
+                         ))
+                     )}
+                 </select>
+             </div>
+
+             {/* Botón desplegar buscador por texto */}
+             <button
+                 onClick={() => setShowSearchInput(!showSearchInput)}
+                 className={`p-1.5 rounded-lg border text-xs font-bold transition flex items-center justify-center ${showSearchInput || searchTerm ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}
+                 title={showSearchInput ? "Ocultar buscador" : "Buscar por texto"}
+             >
+                 <Search size={15} />
+             </button>
+
+             {/* Botón filtros avanzados */}
+             <button
+                 onClick={() => setShowFilters(!showFilters)}
+                 className={`px-2 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition ${showFilters || activeDropdownFiltersCount > 0 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}
+                 title="Filtros por Tratante, Sede, Tipo y Orden"
+             >
+                 <SlidersHorizontal size={14} />
+                 {activeDropdownFiltersCount > 0 && <span className="bg-white text-blue-600 rounded-full px-1.5 text-[10px] font-black">{activeDropdownFiltersCount}</span>}
+             </button>
+
+             {/* Botón limpiar filtros */}
+             {hasActiveFilters && (
+                 <button onClick={clearAllFilters} className="p-1.5 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300" title="Limpiar todos los filtros">
+                     <RotateCcw size={14} />
+                 </button>
+             )}
+         </div>
+
+         {/* Buscador de texto desplegable */}
+         {(showSearchInput || searchTerm) && (
+             <div className="relative animate-in fade-in duration-150">
+                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                  <input
                      type="text"
+                     autoFocus
                      value={searchTerm}
                      onChange={e => setSearchTerm(e.target.value)}
-                     placeholder="Buscar paciente, cama, dx, tratante..."
-                     className="w-full pl-8 pr-7 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white focus:outline-none focus:border-blue-500"
+                     placeholder="Buscar paciente, cama, diagnóstico, tratante..."
+                     className="w-full pl-8 pr-7 py-1.5 border border-blue-200 dark:border-blue-700 bg-blue-50/50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                  />
                  {searchTerm && (
                      <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-white">
@@ -262,20 +369,7 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
                      </button>
                  )}
              </div>
-             <button
-                 onClick={() => setShowFilters(!showFilters)}
-                 className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition ${showFilters || activeDropdownFiltersCount > 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}
-                 title="Filtros por Tratante, Residente, Sede y Orden"
-             >
-                 <SlidersHorizontal size={14} />
-                 {activeDropdownFiltersCount > 0 && <span className="bg-white text-blue-600 rounded-full px-1.5 text-[10px] font-black">{activeDropdownFiltersCount}</span>}
-             </button>
-             {hasActiveFilters && (
-                 <button onClick={clearAllFilters} className="p-1.5 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300" title="Limpiar filtros">
-                     <RotateCcw size={14} />
-                 </button>
-             )}
-         </div>
+         )}
 
          {/* Fila 2: Chips rápidos de estado (Scroll horizontal limpio en móvil): xVer, Alta, PA, Pend y Ent */}
          <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-[11px] font-bold">
@@ -326,52 +420,31 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
              </div>
          )}
 
-         {/* Panel desplegable de selectores (Tratante, Residente, Hospital, Tipo, Orden) */}
+         {/* Panel desplegable de selectores (Tratante, Sede, Tipo, Orden) */}
          {showFilters && (
              <div className="pt-2 border-t border-gray-100 dark:border-slate-700 space-y-2">
                  <div className="grid grid-cols-2 gap-1.5">
-                     <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={filterDoc} onChange={e=>setFilterDoc(e.target.value)}>
+                     <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600 font-medium" value={filterDoc} onChange={e=>setFilterDoc(e.target.value)}>
                          <option value="">Tratante (Todos)</option>
                          {dynamicDoctors.map(d => <option key={d} value={d}>{d}</option>)}
                          <option value="Otro">Otro...</option>
                      </select>
-                     <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={filterRes} onChange={e=>setFilterRes(e.target.value)}>
-                         <option value="">Residente (Todos)</option>
-                         {hzhResidents.length > 0 ? (
-                             <>
-                                 <optgroup label="📍 Rotando en Zambrano (HZH)">
-                                     {hzhResidents.map(r => (
-                                         <option key={r} value={r}>{r}</option>
-                                     ))}
-                                 </optgroup>
-                                 <optgroup label="Otros Residentes">
-                                     {otherResidents.map(r => (
-                                         <option key={r} value={r}>{r}</option>
-                                     ))}
-                                 </optgroup>
-                             </>
-                         ) : (
-                             orderedResidents.map(r => (
-                                 <option key={r} value={r}>{r}</option>
-                             ))
-                         )}
-                     </select>
-                 </div>
-                 <div className="grid grid-cols-3 gap-1.5">
-                     <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={filterHosp} onChange={e=>setFilterHosp(e.target.value)}>
+                     <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600 font-medium" value={filterHosp} onChange={e=>setFilterHosp(e.target.value)}>
                          <option value="">Sede (Todas)</option>
                          {availableHospitals.map(h => <option key={h} value={h}>{h}</option>)}
                      </select>
-                     <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={filterType} onChange={e=>setFilterType(e.target.value)}>
+                 </div>
+                 <div className="grid grid-cols-2 gap-1.5">
+                     <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600 font-medium" value={filterType} onChange={e=>setFilterType(e.target.value)}>
                          <option value="">Tipo (Todos)</option>
-                         <option value="HO">HO</option>
-                         <option value="IC">IC</option>
-                         <option value="SND">SND</option>
-                         <option value="NOVER">NOVER</option>
+                         <option value="HO">HO (Hospitalizado)</option>
+                         <option value="IC">IC (Interconsulta)</option>
+                         <option value="SND">SND (Sonda / Amb.)</option>
+                         <option value="NOVER">NOVER (No ver)</option>
                      </select>
-                     <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600" value={sortBy} onChange={e=>setSortBy(e.target.value)}>
+                     <select className="p-1.5 border rounded-lg text-xs bg-slate-50 dark:bg-slate-700 dark:text-white dark:border-slate-600 font-medium" value={sortBy} onChange={e=>setSortBy(e.target.value)}>
                          <option value="bed">Orden: Cama</option>
-                         <option value="los">Orden: Días</option>
+                         <option value="los">Orden: Días (LOS)</option>
                          <option value="hospital">Orden: Sede</option>
                          <option value="name">Orden: Nombre</option>
                      </select>
@@ -483,10 +556,12 @@ export default function Census({ user, dynamicResidents, dynamicDoctors, dynamic
 
          {filteredPatients.length === 0 && (
              <div className="text-center py-10 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-700">
-                 <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">No hay pacientes que coincidan con la búsqueda.</p>
+                 <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">
+                     {filterRes ? `No hay pacientes asignados a ${filterRes === matchedUserResident ? 'ti' : filterRes}.` : "No hay pacientes que coincidan con la búsqueda o filtros."}
+                 </p>
                  {hasActiveFilters && (
                      <button onClick={clearAllFilters} className="mt-2 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">
-                         Restablecer vista
+                         Restablecer vista (Ver todos)
                      </button>
                  )}
              </div>

@@ -52,7 +52,8 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
 
   // Buscador y filtros colapsables
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRes, setFilterRes] = useState('');
+  const [showSearchInput, setShowSearchInput] = useState(false);
+  const [filterRes, setFilterRes] = useState(''); // Por defecto en '' (Todos los residentes) para ver la programación completa de quirófano
   const [filterDoc, setFilterDoc] = useState('');
   const [filterLoc, setFilterLoc] = useState('');
   const [listPeriod, setListPeriod] = useState('upcoming'); // 'upcoming' | 'past' | 'all' (para vista lista)
@@ -76,6 +77,31 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
     () => getOrderedResidents(resiList, settingsMeta),
     [resiList, settingsMeta]
   );
+
+  const matchedUserResident = useMemo(() => {
+    if (!user) return null;
+    const candidateNames = [
+      currentUserProfile?.name,
+      user.displayName,
+      user.email ? user.email.split('@')[0] : ''
+    ].filter(Boolean);
+
+    for (const cand of candidateNames) {
+      const normCand = normalizeText(cand);
+      const match = orderedResidents.find(r => normalizeText(r) === normCand || normCand.includes(normalizeText(r)) || normalizeText(r).includes(normCand));
+      if (match) return match;
+    }
+    return null;
+  }, [user, currentUserProfile, orderedResidents]);
+
+  const userSurgeriesCount = useMemo(() => {
+    if (!matchedUserResident) return 0;
+    const normUser = normalizeText(matchedUserResident);
+    return surgeries.filter(s => !s.cancelled && (normalizeText(s.resident) === normUser || normalizeText(s.resident2) === normUser)).length;
+  }, [surgeries, matchedUserResident]);
+
+
+
   const selectedDayGuard = useMemo(() => getGuardForDate(selectedDate, settingsMeta), [selectedDate, settingsMeta]);
 
   // Si el usuario selecciona una fecha anterior a la ventana cargada, ampliamos daysBack automáticamente
@@ -347,10 +373,11 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
   };
 
   const hasActiveFilters = Boolean(searchTerm || filterRes || filterDoc || filterLoc);
-  const activeFilterCount = [filterRes, filterDoc, filterLoc].filter(Boolean).length;
+  const activeDrawerFiltersCount = [filterDoc, filterLoc].filter(Boolean).length;
 
   const clearFilters = () => {
     setSearchTerm('');
+    setShowSearchInput(false);
     setFilterRes('');
     setFilterDoc('');
     setFilterLoc('');
@@ -426,14 +453,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                 <List size={13} /> Lista
               </button>
             </div>
-            {stats.unassignedCount > 0 && (
-              <button
-                onClick={() => { setFilterRes(filterRes === 'Por Asignar' ? '' : 'Por Asignar'); setViewMode('list'); }}
-                className="text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 px-2 py-1 rounded-full whitespace-nowrap"
-              >
-                ⚠️ {stats.unassignedCount} sin R
-              </button>
-            )}
           </div>
 
           <div className="flex items-center gap-1">
@@ -446,16 +465,83 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
           </div>
         </div>
 
-        {/* Fila 2: Buscador + Botón Filtros */}
+        {/* Fila 2: Filtro Residente (Principal) + Toggle Buscador + Filtros Avanzados + Reset */}
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
+            <select
+              value={filterRes}
+              onChange={e => setFilterRes(e.target.value)}
+              className="w-full py-1.5 pl-2.5 pr-6 border border-gray-200 dark:border-slate-600 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 truncate"
+            >
+              <option value="">👥 Todos los residentes ({surgeries.length})</option>
+              <option value="Por Asignar">⚠️ Por Asignar ({stats.unassignedCount})</option>
+              {hzhResidents.length > 0 ? (
+                <>
+                  <optgroup label="📍 Zambrano (HZH)">
+                    {hzhResidents.map(r => (
+                      <option key={r} value={r}>
+                        {r === matchedUserResident ? `👤 ${r} (Tú)` : r}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {otherResidents.length > 0 && (
+                    <optgroup label="Otros Residentes">
+                      {otherResidents.map(r => (
+                        <option key={r} value={r}>
+                          {r === matchedUserResident ? `👤 ${r} (Tú)` : r}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              ) : (
+                orderedResidents.map(r => (
+                  <option key={r} value={r}>
+                    {r === matchedUserResident ? `👤 ${r} (Tú)` : r}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          {/* Botón desplegar buscador por texto */}
+          <button
+            onClick={() => setShowSearchInput(!showSearchInput)}
+            className={`p-1.5 rounded-lg border text-xs font-bold transition flex items-center justify-center ${showSearchInput || searchTerm ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}
+            title={showSearchInput ? "Ocultar buscador" : "Buscar por texto"}
+          >
+            <Search size={14} />
+          </button>
+
+          {/* Botón filtros avanzados */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-2 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition ${showFilters || activeDrawerFiltersCount > 0 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}
+            title="Filtros por Tratante y Sede"
+          >
+            <SlidersHorizontal size={14} />
+            {activeDrawerFiltersCount > 0 && <span className="bg-white text-blue-600 rounded-full px-1.5 text-[10px] font-black">{activeDrawerFiltersCount}</span>}
+          </button>
+
+          {/* Botón limpiar filtros */}
+          {hasActiveFilters && (
+            <button onClick={clearFilters} className="p-1.5 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300" title="Limpiar todos los filtros">
+              <RotateCcw size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Buscador de texto desplegable */}
+        {(showSearchInput || searchTerm) && (
+          <div className="relative animate-in fade-in duration-150">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
+              autoFocus
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               placeholder="Buscar paciente, procedimiento, tratante..."
-              className="w-full pl-8 pr-7 py-1.5 border border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg text-xs focus:outline-none focus:border-blue-500"
+              className="w-full pl-8 pr-7 py-1.5 border border-blue-200 dark:border-blue-700 bg-blue-50/50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             {searchTerm && (
               <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-white">
@@ -463,52 +549,16 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
               </button>
             )}
           </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition ${showFilters || activeFilterCount > 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}
-          >
-            <SlidersHorizontal size={14} />
-            {activeFilterCount > 0 && <span className="bg-white text-blue-600 rounded-full px-1.5 text-[10px] font-black">{activeFilterCount}</span>}
-          </button>
-          {hasActiveFilters && (
-            <button onClick={clearFilters} className="p-1.5 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300" title="Limpiar filtros">
-              <RotateCcw size={14} />
-            </button>
-          )}
-        </div>
+        )}
 
-        {/* Filtros desplegables */}
+        {/* Filtros desplegables (Tratante y Sede) */}
         {showFilters && (
-          <div className="grid grid-cols-3 gap-1.5 pt-1.5 border-t border-gray-100 dark:border-slate-700">
-            <select className="border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg p-1.5 text-xs" value={filterRes} onChange={e => setFilterRes(e.target.value)}>
-              <option value="">Residente (Todos)</option>
-              <option value="Por Asignar">⚠️ Por Asignar</option>
-              {hzhResidents.length > 0 ? (
-                <>
-                  <optgroup label="📍 Rotando en Zambrano (HZH)">
-                    {hzhResidents.map(r => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </optgroup>
-                  {otherResidents.length > 0 && (
-                    <optgroup label="Otros Residentes">
-                      {otherResidents.map(r => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                </>
-              ) : (
-                orderedResidents.map(r => (
-                  <option key={r} value={r}>{r}</option>
-                ))
-              )}
-            </select>
-            <select className="border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg p-1.5 text-xs" value={filterDoc} onChange={e => setFilterDoc(e.target.value)}>
+          <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-gray-100 dark:border-slate-700">
+            <select className="border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg p-1.5 text-xs font-medium" value={filterDoc} onChange={e => setFilterDoc(e.target.value)}>
               <option value="">Tratante (Todos)</option>
               {docList.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
-            <select className="border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg p-1.5 text-xs" value={filterLoc} onChange={e => setFilterLoc(e.target.value)}>
+            <select className="border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg p-1.5 text-xs font-medium" value={filterLoc} onChange={e => setFilterLoc(e.target.value)}>
               <option value="">Sede (Todas)</option>
               {locList.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
@@ -551,18 +601,23 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                 {selectedDate !== today && (
                   <button
                     onClick={() => setSelectedDate(today)}
-                    className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-bold"
+                    className="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-bold"
                   >
-                    Ir a Hoy
+                    Hoy
                   </button>
                 )}
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={e => e.target.value && setSelectedDate(e.target.value)}
-                  className="p-1 border border-gray-200 dark:border-slate-600 rounded-lg text-xs bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white w-[34px] sm:w-auto overflow-hidden"
-                  title="Ir a fecha específica"
-                />
+                <label
+                  className="relative p-1.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer flex items-center justify-center transition shadow-sm"
+                  title="Seleccionar fecha"
+                >
+                  <CalendarIcon size={15} />
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={e => e.target.value && setSelectedDate(e.target.value)}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                  />
+                </label>
               </div>
             </div>
 
@@ -573,7 +628,7 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                   {/* Badge Guardia */}
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 flex items-center gap-0.5">
-                      🛡️ Guardia:
+                      🛡️ Gua:
                     </span>
                     {selectedDayGuard.guardia ? (() => {
                       const gProf = getMemberProfile(selectedDayGuard.guardia, settingsMeta);
@@ -672,16 +727,6 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
          ===================================================================== */}
       {viewMode === 'day' && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
-          {/* Leyenda rápida de colores + Ayuda */}
-          <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/80 border-b border-gray-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-[10px] text-gray-500 dark:text-slate-400">
-            <div className="flex items-center gap-3 font-bold">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500"></span> HZH</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-400"></span> Instituto</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span> Otro Hosp.</span>
-            </div>
-            <span>Toca una hora vacía para agendar</span>
-          </div>
-
           {/* Cuadrícula Hora por Hora con horas vacías compactas */}
           <div className="relative select-none" style={{ height: `${totalGridHeight}px` }}>
             {/* Filas de cada hora */}
@@ -882,7 +927,14 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
           })}
           {listSurgeries.length === 0 && (
             <div className="text-center py-10 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-700">
-              <p className="text-gray-500 dark:text-slate-400 text-xs">No hay cirugías que coincidan con los filtros.</p>
+              <p className="text-gray-500 dark:text-slate-400 text-xs">
+                {filterRes ? `No hay cirugías programadas para ${filterRes === matchedUserResident ? 'ti' : filterRes}.` : "No hay cirugías que coincidan con los filtros."}
+              </p>
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="mt-2 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                  Restablecer filtros (Ver todas)
+                </button>
+              )}
             </div>
           )}
         </div>
