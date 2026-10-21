@@ -241,42 +241,100 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
     return { upcomingCount: upcoming.length, todayCount, unassignedCount };
   }, [surgeries, today]);
 
-  // Cálculo de columnas para traslapes en la vista Google Calendar
+  // Cálculo de columnas para traslapes en la vista Google Calendar (algoritmo de clusters y colSpan)
   const positionedDaySurgeries = useMemo(() => {
+    if (!daySurgeries || daySurgeries.length === 0) return [];
+
     const items = daySurgeries.map(s => {
       const start = parseTimeToHours(s.time);
       const duration = Number(s.duration) > 0 ? Number(s.duration) : 1; // 1 hora default
       const end = start + duration;
-      return { ...s, start, duration, end };
+      // visualEnd garantiza que cirugías cortas (< 50 min) no queden tapadas verticalmente por otra en la misma columna
+      const visualEnd = Math.max(end, start + 0.85);
+      return { ...s, start, duration, end, visualEnd };
     });
 
-    // Algoritmo de columnas para eventos que se traslapan en horario
-    const columns = [];
+    // Ordenar cronológicamente; si inician al mismo tiempo, las más largas primero para fijar las columnas base
+    items.sort((a, b) => {
+      if (Math.abs(a.start - b.start) > 0.001) return a.start - b.start;
+      if (Math.abs(b.duration - a.duration) > 0.001) return b.duration - a.duration;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+
+    // Agrupación en clusters / componentes conexos (cirugías que se traslapan directa o indirectamente)
+    const clusters = [];
+    let currentCluster = [];
+    let clusterMaxEnd = -1;
+
+    for (const item of items) {
+      if (currentCluster.length === 0) {
+        currentCluster.push(item);
+        clusterMaxEnd = item.end;
+      } else if (item.start < clusterMaxEnd - 0.01) {
+        // Se traslapa directa o indirectamente con el cluster actual
+        currentCluster.push(item);
+        clusterMaxEnd = Math.max(clusterMaxEnd, item.end);
+      } else {
+        // Cierra el cluster actual e inicia uno nuevo
+        clusters.push(currentCluster);
+        currentCluster = [item];
+        clusterMaxEnd = item.end;
+      }
+    }
+    if (currentCluster.length > 0) {
+      clusters.push(currentCluster);
+    }
+
+    // Para cada cluster, asignar columnas y calcular expansión horizontal (colSpan)
     const results = [];
 
-    items.forEach(item => {
-      let placed = false;
-      for (let i = 0; i < columns.length; i++) {
-        const lastInCol = columns[i][columns[i].length - 1];
-        if (lastInCol.end <= item.start + 0.01) {
-          columns[i].push(item);
-          results.push({ ...item, colIndex: i });
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        columns.push([item]);
-        results.push({ ...item, colIndex: columns.length - 1 });
-      }
-    });
+    for (const cluster of clusters) {
+      const columns = []; // columns[c] = array de eventos en columna c
+      const placedItems = [];
 
-    // Determinar cuántas columnas concurrentes tiene cada evento
-    return results.map(r => {
-      const overlapping = results.filter(other => other.start < r.end - 0.01 && other.end > r.start + 0.01);
-      const maxCol = overlapping.reduce((acc, cur) => Math.max(acc, cur.colIndex), 0) + 1;
-      return { ...r, totalCols: maxCol };
-    });
+      for (const item of cluster) {
+        let placedCol = -1;
+        for (let c = 0; c < columns.length; c++) {
+          const lastInCol = columns[c][columns[c].length - 1];
+          if (lastInCol.visualEnd <= item.start + 0.01) {
+            placedCol = c;
+            columns[c].push(item);
+            break;
+          }
+        }
+        if (placedCol === -1) {
+          placedCol = columns.length;
+          columns.push([item]);
+        }
+        placedItems.push({ item, colIndex: placedCol });
+      }
+
+      const totalCols = columns.length;
+
+      // Calcular colSpan: cuántas columnas contiguas a la derecha están completamente libres durante este evento
+      for (const { item, colIndex } of placedItems) {
+        let colSpan = 1;
+        for (let c = colIndex + 1; c < totalCols; c++) {
+          const hasConflict = columns[c].some(other => {
+            return !(other.start >= item.visualEnd - 0.01 || other.visualEnd <= item.start + 0.01);
+          });
+          if (!hasConflict) {
+            colSpan++;
+          } else {
+            break; // No se puede expandir sobre columnas ocupadas
+          }
+        }
+
+        results.push({
+          ...item,
+          colIndex,
+          totalCols,
+          colSpan
+        });
+      }
+    }
+
+    return results;
   }, [daySurgeries]);
 
   // Rango de horas de la cuadrícula (por defecto 06:00 a 21:00, ampliable si hay cx antes/después)
@@ -795,10 +853,12 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                 const topPx = getYPositionForTime(s.start) + 1;
                 const rawHeight = getYPositionForTime(s.end) - getYPositionForTime(s.start) - 3;
                 const heightPx = Math.max(78, rawHeight);
-                const widthPct = 100 / s.totalCols;
-                const leftPct = s.colIndex * widthPct;
+                const colSpan = s.colSpan || 1;
+                const widthPct = (colSpan / s.totalCols) * 100;
+                const leftPct = (s.colIndex / s.totalCols) * 100;
                 const endTimeStr = formatHoursToTime(s.end);
                 const resProf = s.resident ? getMemberProfile(s.resident, settingsMeta) : null;
+                const isNarrow = s.totalCols >= 3 && colSpan === 1;
 
                 return (
                   <div
@@ -813,13 +873,13 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
                       left: `calc(${leftPct}% + 2px)`,
                       width: `calc(${widthPct}% - 4px)`
                     }}
-                    className={`absolute z-10 rounded-lg px-2 py-1.5 pointer-events-auto cursor-pointer overflow-hidden transition hover:brightness-95 active:scale-[0.99] flex flex-col justify-between border border-black/5 dark:border-white/10 ${getEventBlockStyle(s)}`}
+                    className={`absolute z-10 rounded-lg ${isNarrow ? 'px-1.5 py-1' : 'px-2 py-1.5'} pointer-events-auto cursor-pointer overflow-hidden transition hover:brightness-95 active:scale-[0.99] flex flex-col justify-between border border-black/5 dark:border-white/10 ${getEventBlockStyle(s)}`}
                   >
                     {/* Parte superior: Hora + Sede + Paciente + Procedimiento */}
                     <div className="min-w-0">
                       <div className="flex items-center justify-between gap-1 text-[10px] font-bold leading-none mb-0.5">
-                        <span className="truncate">{s.time} - {endTimeStr} ({s.duration}h)</span>
-                        <span className="px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/15 uppercase font-black text-[9px] flex-shrink-0">
+                        <span className="truncate">{isNarrow ? `${s.time} (${s.duration}h)` : `${s.time} - ${endTimeStr} (${s.duration}h)`}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/15 uppercase font-black text-[9px] flex-shrink-0 tracking-tight">
                           {s.location || 'S/S'}
                         </span>
                       </div>
@@ -833,12 +893,12 @@ export default function Surgery({ user, dynamicResidents, dynamicDoctors, dynami
 
                     {/* Parte inferior SIEMPRE visible: Médico Adscrito + Residente(s) */}
                     <div className="flex items-center justify-between gap-1 text-[10px] pt-1 mt-0.5 border-t border-black/10 dark:border-white/10 min-w-0">
-                      <span className="font-semibold truncate">
+                      <span className="font-semibold truncate min-w-0 flex-1">
                         👨‍⚕️ {applyPrivacy(s.doctor || 'S/T', privacyMode, 'name')}
                       </span>
-                      <span className={`font-black px-1.5 py-0.5 rounded flex-shrink-0 inline-flex items-center gap-1 ${!s.resident ? 'bg-yellow-200/90 text-yellow-900' : resProf ? `${resProf.color.badge} border` : 'bg-black/10 dark:bg-white/15'}`}>
+                      <span className={`font-black px-1.5 py-0.5 rounded flex-shrink-0 inline-flex items-center gap-1 text-[9px] sm:text-[10px] ${!s.resident ? 'bg-yellow-200/90 text-yellow-900' : resProf ? `${resProf.color.badge} border` : 'bg-black/10 dark:bg-white/15'}`}>
                         {resProf && <span className={`w-1.5 h-1.5 rounded-full ${resProf.color.dot}`}></span>}
-                        <span>{s.resident || 'S/A'}{s.resident2 ? ` + ${s.resident2}` : ''}</span>
+                        <span className="truncate max-w-[65px] sm:max-w-none">{s.resident || 'S/A'}{s.resident2 ? ` + ${s.resident2}` : ''}</span>
                       </span>
                     </div>
                   </div>
