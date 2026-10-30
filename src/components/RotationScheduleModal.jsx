@@ -744,6 +744,7 @@ export default function RotationScheduleModal({ user, onClose, dynamicResidents 
           freeWeekends: curMonthCfg.freeWeekends || [],
           vacations: curMonthCfg.vacations || [],
           months: monthsData,
+          dismissedPrompts: currentRot.dismissedPrompts || {},
           updatedAt: new Date().toISOString()
         }
       };

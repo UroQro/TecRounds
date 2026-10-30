@@ -522,18 +522,50 @@ export const getGuardForDate = (dateStr, settingsMeta = {}) => {
     return { guardia, posguardia, freeResidents, vacationResidents, activeAbsences };
 };
 
-export const isEndOfMonthRotationPrompt = (settingsMeta = {}) => {
+export const isEndOfMonthRotationPrompt = (settingsMeta = {}, user = null) => {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
     const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
     const dayOfMonth = now.getDate();
 
+    const nextDate = new Date(year, month + 1, 1);
+    const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+
+    // Solo mostrar el aviso de fin de mes a R4 y R5
+    if (!user) {
+        return { show: false, targetMonth: nextMonthKey, isEndOfMonth: false };
+    }
+    const { allowed } = canUserManageSchedule(user, settingsMeta);
+    if (!allowed) {
+        return { show: false, targetMonth: nextMonthKey, isEndOfMonth: false };
+    }
+
     // Si estamos en los últimos 3 días del mes, sugerir configurar el mes siguiente
     if (dayOfMonth >= lastDayOfMonth - 2) {
-        const nextDate = new Date(year, month + 1, 1);
-        const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
-        if (settingsMeta?.hzhRotation?.month !== nextMonthKey) {
+        const rot = settingsMeta?.hzhRotation || {};
+        const nextMonthCfg = rot.months?.[nextMonthKey];
+        const hasResidentsAssigned = Array.isArray(nextMonthCfg?.residents) && nextMonthCfg.residents.length > 0;
+        const hasScheduleAssigned = Object.keys(rot.schedule || {}).some(
+            dStr => dStr.startsWith(`${nextMonthKey}-`) && rot.schedule[dStr]?.guardia
+        );
+        const isAlreadyConfigured = rot.month === nextMonthKey || hasResidentsAssigned || hasScheduleAssigned;
+
+        const userKey = normalizeText(user?.email || user?.uid || user?.displayName || 'default');
+        const dismissedInMeta = Boolean(
+            rot.dismissedPrompts?.[nextMonthKey]?.[userKey] ||
+            rot.dismissedPrompts?.[nextMonthKey]?.all
+        );
+        let dismissedInStorage = false;
+        try {
+            dismissedInStorage =
+                localStorage.getItem(`urotec_eom_dismiss_${nextMonthKey}_${userKey}`) === '1' ||
+                localStorage.getItem(`urotec_eom_dismiss_${nextMonthKey}`) === '1';
+        } catch (e) {
+            // Ignorar errores de acceso a localStorage
+        }
+
+        if (!isAlreadyConfigured && !dismissedInMeta && !dismissedInStorage) {
             return { show: true, targetMonth: nextMonthKey, isEndOfMonth: true };
         }
     }

@@ -8,7 +8,7 @@ import Surgery from './components/Surgery';
 import Discharges from './components/Discharges';
 import AdminPanel from './components/AdminPanel';
 import RotationScheduleModal from './components/RotationScheduleModal';
-import { LogOut, ClipboardList, Archive, Scissors, Lock, Eye, EyeOff, BookOpen, MapPin } from 'lucide-react';
+import { LogOut, ClipboardList, Archive, Scissors, Lock, Eye, EyeOff, BookOpen, MapPin, X } from 'lucide-react';
 import { getLocalISODate, getMemberProfile, isEndOfMonthRotationPrompt, computeMarchPromotion, normalizeText } from './utils';
 import { DEFAULT_RESIDENTS, DOCTORS, LOCATIONS } from './constants';
 
@@ -20,6 +20,7 @@ export default function App() {
   const [showRotationModal, setShowRotationModal] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false); 
   const [readerMode, setReaderMode] = useState(false); 
+  const [dismissedEomMonth, setDismissedEomMonth] = useState(null); 
 
   const [dynamicResidents, setDynamicResidents] = useState(DEFAULT_RESIDENTS);
   const [dynamicDoctors, setDynamicDoctors] = useState(DOCTORS);
@@ -133,6 +134,12 @@ export default function App() {
               if (Object.keys(updates).length > 0) {
                   await setDoc(doc(db, 'metadata', 'settings'), updates, { merge: true });
               }
+
+              setSettingsMeta({
+                  profiles: updates.profiles || data.profiles || {},
+                  hzhRotation: data.hzhRotation || {},
+                  lastPromotionYear: updates.lastPromotionYear ?? data.lastPromotionYear
+              });
           } catch(err) {
               console.error("Error validando usuario:", err);
           }
@@ -161,7 +168,37 @@ export default function App() {
   if (!user) return <Login />;
 
   const currentUserProfile = getMemberProfile(user.email || getUserName(), settingsMeta);
-  const endOfMonthPrompt = isEndOfMonthRotationPrompt(settingsMeta);
+  const endOfMonthPrompt = isEndOfMonthRotationPrompt(settingsMeta, user);
+  const showEndOfMonthBanner = endOfMonthPrompt.show && dismissedEomMonth !== endOfMonthPrompt.targetMonth;
+
+  const handleDismissEndOfMonth = async (targetMonth) => {
+      if (!targetMonth) return;
+      setDismissedEomMonth(targetMonth);
+      const userKey = normalizeText(user?.email || user?.uid || getUserName() || 'default');
+      try {
+          localStorage.setItem(`urotec_eom_dismiss_${targetMonth}_${userKey}`, '1');
+          localStorage.setItem(`urotec_eom_dismiss_${targetMonth}`, '1');
+      } catch (e) {
+          // Ignorar errores de almacenamiento local
+      }
+      try {
+          const prevDismissed = settingsMeta?.hzhRotation?.dismissedPrompts || {};
+          const nextDismissed = {
+              ...prevDismissed,
+              [targetMonth]: {
+                  ...(prevDismissed[targetMonth] || {}),
+                  [userKey]: true
+              }
+          };
+          await setDoc(
+              doc(db, 'metadata', 'settings'),
+              { hzhRotation: { dismissedPrompts: nextDismissed } },
+              { merge: true }
+          );
+      } catch (e) {
+          console.error("Error guardando dismiss de aviso de fin de mes:", e);
+      }
+  };
 
   return (
     <>
@@ -223,16 +260,29 @@ export default function App() {
           </div>
         </header>
 
-        {/* Aviso automático de fin de mes para seleccionar residentes en HZH */}
-        {endOfMonthPrompt.show && (
-            <div className="bg-orange-500 text-white px-3 py-2 text-xs font-bold flex items-center justify-between max-w-5xl mx-auto w-full shadow-sm">
-                <span>📅 Fin de mes: Selecciona qué residentes rotarán en Zambrano (HZH) el próximo mes ({endOfMonthPrompt.targetMonth})</span>
-                <button
-                    onClick={() => setShowRotationModal(true)}
-                    className="bg-white text-orange-600 px-2.5 py-1 rounded-lg font-black text-[11px] flex-shrink-0 ml-2 shadow-sm"
-                >
-                    Configurar HZH
-                </button>
+        {/* Aviso automático de fin de mes para seleccionar residentes en HZH (solo R4 y R5, una sola vez hasta dismiss) */}
+        {showEndOfMonthBanner && (
+            <div className="bg-orange-500 text-white px-3 py-2 text-xs font-bold flex items-center justify-between gap-2 max-w-5xl mx-auto w-full shadow-sm">
+                <span className="leading-snug">📅 Fin de mes: Selecciona qué residentes rotarán en Zambrano (HZH) el próximo mes ({endOfMonthPrompt.targetMonth})</span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                        onClick={() => {
+                            handleDismissEndOfMonth(endOfMonthPrompt.targetMonth);
+                            setShowRotationModal(true);
+                        }}
+                        className="bg-white text-orange-600 px-2.5 py-1 rounded-lg font-black text-[11px] shadow-sm hover:bg-orange-50 transition"
+                    >
+                        Configurar HZH
+                    </button>
+                    <button
+                        onClick={() => handleDismissEndOfMonth(endOfMonthPrompt.targetMonth)}
+                        className="bg-orange-600/80 hover:bg-orange-700 text-white px-2 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 transition"
+                        title="Descartar aviso"
+                    >
+                        <X size={13} />
+                        <span>Dismiss</span>
+                    </button>
+                </div>
             </div>
         )}
 
